@@ -2,6 +2,8 @@
 
 import pandas as pd
 
+def pickRegion(df,region='tumor'):
+    pass
 def mergeSampleToPatient(df):
     '''
     A inplace function.
@@ -53,6 +55,3 @@ def tpmToFpkm(df,reverse=False):
         return fpkm
 
 
-def segmentToGene(sgment_path, ref_version='hg19'):
-    # TODO segment to gene level, figure out the parameter meaning.
-    pass

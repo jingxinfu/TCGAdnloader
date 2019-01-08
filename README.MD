@@ -47,6 +47,9 @@ $TPM=\frac{count_i}{N\cdot l_i}(\sum_j \frac{count_j}{N\cdot  l_j})^{-1} \cdot 1
 >
 > 1. The abundance of SCNAs in humam cancers varies accoridng to their size. Chromosome-arm length SCNAs occurrs much more fequently than SCNAs of smaller size. ([Beroukhim R, et al.m *Nature*. 2010.](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2826709/))
 > 2. Above observation indicates that analysis methods need to model complex cancer genomes with SCNA types occurring at distinct background rates.
+>  **GISTIC in Firebrowse**
+>  Gistic in our GDAC pipeline now operates upon the last of these: scna_minus_germline_cnv_hg19__seg[May 2012](https://confluence.broadinstitute.org/display/GDAC/Analysis+Run+Release+Notes)
+
 
 
 

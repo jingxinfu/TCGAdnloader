@@ -4,3 +4,6 @@ CANCER_LIST = [
     'SARC','STAD','TGCT','THYM','UCS','BLCA','CESC','COAD','DLBC','GBM','HNSC',
     'KIRC','LAML','LIHC','LUSC','OV','PCPG','READ','SKCM','THCA','UCEC','UVM',
 ]
+RNASEQ_DIR = '../RNASeq'
+CNV_DIR = '../CNV'
+RPPA_DIR = '../RPPA'
