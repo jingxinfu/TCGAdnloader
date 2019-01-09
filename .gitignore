@@ -5,6 +5,8 @@ user_upload
 # macos system file
 .DS_Store
 */.DS_Store
+.vscode/*
+.vscode
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
