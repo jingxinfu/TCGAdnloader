@@ -1,5 +1,5 @@
 from setuptools import setup
-
+import os,re
 
 NAME = 'dataCollection'
 PACKAGE = [NAME]
@@ -16,6 +16,18 @@ Data Collection
 '''
 
 
+def path_files(directory):
+    paths = []
+    for (path, directories, filenames) in os.walk(directory):
+        for filename in filenames:
+            if filename[0] is not '.':  # filter hidden files
+                paths.append(os.path.join(
+                    re.sub(NAME+'/', '', path), filename))
+    return paths
+
+
+package_files = path_files(NAME+'/data')
+
 def main():
     setup(name=NAME,
         version=VERSION,
@@ -24,6 +36,7 @@ def main():
         author='Jingxin Fu',
         author_email='jingxinfu.tj@gmail.com',
         packages=PACKAGE,
+        package_data={NAME: package_files},
         install_requires=REQUIRES,
         license=open('LICENSE').read(),
         scripts=['bin/collect'],

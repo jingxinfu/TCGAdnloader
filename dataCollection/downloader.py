@@ -2,7 +2,8 @@
 
 import subprocess, os
 import pandas as pd
-from .convertor import mergeSampleToPatient
+import numpy as np
+from .convertor import mergeSampleToPatient, calTNzcore, rmEntrez, tpmToFpkm, mapEm2Gene
 from .outformat import storeData
 
 
@@ -14,7 +15,7 @@ class FireBrowseDnloader(object):
          self.base_url = base_url
 
     
-    def _fget(self,cancer, data_type, store_dir):
+    def _fget(self,data_type, store_dir):
         
         ''' Download level 3 data from FireBrowse
         Parameters
@@ -43,13 +44,12 @@ class FireBrowseDnloader(object):
         # modifition to adapt CNV data on the function
         if data_type =='cnv':
             release_prefix = 'analyses'
-            cancer_suffix = '-TM'
-            if cancer == 'SKCM':
-                cancer_suffix = '-TP'
+            cancer_suffix = '-TP'
+            if self.cancer == 'SKCM':
+                cancer_suffix = '-TM'
         else:
-            cancer_suffix = 'stddata'
-            release_prefix = 'analyses'
-        cancer = cancer + cancer_suffix
+            cancer_suffix = ''
+            release_prefix = 'stddata'
 
         data_type_dict = {
             "rna_raw" : "Merge_rnaseqv2__illuminahiseq_rnaseqv2__unc_edu__Level_3__RSEM_genes__data.Level_3",
@@ -81,7 +81,7 @@ class FireBrowseDnloader(object):
         url = "/".join([self.base_url, release, sub_folder, file_name])
         
         url = url.format(**dict(
-            cancer=cancer,
+            cancer=self.cancer+cancer_suffix,
             data_type=data_type_dict[data_type],
             release_time=self.release_time,
             short_release_time=short_release_time,
@@ -89,17 +89,21 @@ class FireBrowseDnloader(object):
         )
         cmd ="""
         set -x
-        [ -d {store_dir}/{cancer}_tmp ] || mkdir -p {store_dir}/{cancer}_tmp
-        wget -v -O {store_dir}/{cancer}.gz {url}
-        tar -xvvf {store_dir}/{cancer}.gz -C {store_dir}/{cancer}_tmp --strip-components=1
-        rm {store_dir}/{cancer}.gz
-        mv {store_dir}/{cancer}_tmp/*{keep_suffix} {store_dir}/{cancer}
-        rm -rf {store_dir}/{cancer}_tmp
+        [[ -d {store_dir}_{cancer}_{data_type}_tmp ]] || mkdir -p {store_dir}_{cancer}_{data_type}_tmp
+        wget -v -O {store_dir}_{cancer}_{data_type}.gz {url}
+        tar -xvvf {store_dir}_{cancer}_{data_type}.gz -C {store_dir}_{cancer}_{data_type}_tmp --strip-components=1
+        rm {store_dir}_{cancer}_{data_type}.gz
+        if [ $(ls {store_dir}_{cancer}_{data_type}_tmp/*{keep_suffix}| wc -l) -gt 1 ];then
+            [[ -d {store_dir}_{cancer} ]] || mkdir {store_dir}_{cancer}
+        fi
+        mv {store_dir}_{cancer}_{data_type}_tmp/*{keep_suffix} {store_dir}_{cancer}
+        rm -rf {store_dir}_{cancer}_{data_type}_tmp
         """.format(**dict(
             store_dir=store_dir,
-            cancer=cancer,
+            cancer=self.cancer,
             url=url,
-            keep_suffix=keep_suffix_dict[data_type]
+            keep_suffix=keep_suffix_dict[data_type],
+            data_type=data_type,
             )
         )
 
@@ -152,7 +156,7 @@ class FireBrowseDnloader(object):
             "threds": '{}/all_thresholded.by_genes.txt'
         }
         for k,v in result.items():
-            result[k] = pd.read_table(v.format(gistic_path),index_col=0).drop(['Locus ID', 'Cytoband'])
+            result[k] = pd.read_table(v.format(gistic_path),index_col=0).drop(['Locus ID', 'Cytoband'],axis=1)
         
         return result
 
@@ -176,46 +180,56 @@ class FireBrowseDnloader(object):
         # 3. Merge sample level data into pateint level data, but still separate tumor and normal sample.
         # 4. Calculate TPM and RPKM based on RSEM results.
         ##################################################################################
+        store_dir = '/'.join([self.parental_dir, 'RNASeq'])
+        store_dir_raw = '_'.join([store_dir, 'raw'])
+        store_dir_norm = '_'.join([store_dir, 'norm'])
 
-        log = self._fget(
-            cancer=self.cancer, data_type='rna_raw',
-            store_dir='/'.join([self.parental_dir, 'raw'])
-            )
+        log = self._fget(data_type='rna_raw',store_dir=store_dir_raw)
 
         if log != 'Success':
             return 'rna_raw:    '+log
 
         raw_rnaseq = self._splitCountTPM(
-            raw_rnaseq_path='/'.join([self.parental_dir, 'raw', self.cancer])
+            raw_rnaseq_path='_'.join([store_dir_raw, self.cancer])
             )
         for name, df in raw_rnaseq.items():
-            storeData(df=df, parental_dir=self.parental_dir,
+            df = rmEntrez(df)
+            if name in ['fpkm','tpm']:
+                tumor_zscore = calTNzcore(df,pair_TN=False)
+                storeData(df=tumor_zscore, parental_dir=store_dir,
+                          sub_folder=name+'/zscore_tumor/', cancer=self.cancer)
+                try:
+                    paired_zscore = calTNzcore(df, pair_TN=True)
+                    storeData(df=paired_zscore, parental_dir=store_dir,
+                            sub_folder=name+'/zscore_paired/', cancer=self.cancer)
+                except ValueError:
+                    pass
+
+                name += '/origin'
+            storeData(df = df, parental_dir = store_dir,
                     sub_folder=name, cancer=self.cancer)
 
         subprocess.call(
-            'rm -rf {}'.format('/'.join([self.parental_dir, 'raw'])), shell=True)
+            'rm -rf {}'.format('_'.join([store_dir_raw, self.cancer])), shell=True)
         ########################## Raw count and Scale Estimate ##########################
         # 1. Fetch normalized count from FireBrowse
         # 2. remove the second row, which only  indicate the normalized count
         # 3. Merge sample level data into pateint level data, but still separate tumor and normal sample.
         ##################################################################################
 
-        log = self._fget(
-            cancer=self.cancer,data_type='rna_norm',
-            store_dir='/'.join([self.parental_dir, 'norm'])
-            )
+        log = self._fget(data_type='rna_norm',store_dir=store_dir_norm)
 
         if log != 'Success':
             return 'rna_norm:    '+log
 
         rnaseq_norm = pd.read_table(
-            '/'.join([self.parental_dir, 'norm', self.cancer]), index_col=0, skiprows=[1])
+            '_'.join([store_dir_norm, self.cancer]), index_col=0, skiprows=[1])
         mergeSampleToPatient(rnaseq_norm)
-        storeData(df=rnaseq_norm, parental_dir=self.parental_dir,
-                sub_folder='norm_count', cancer=self.cancer)
+        storeData(df=rnaseq_norm, parental_dir=store_dir,
+                  sub_folder='norm_count', cancer=self.cancer)
 
         subprocess.call(
-            'rm -rf {}'.format('/'.join([self.parental_dir, 'norm'])), shell=True)
+            'rm -rf {}'.format('_'.join([store_dir_norm, self.cancer])), shell=True)
         return 'Success'
 
     def cnvWorkflow(self):
@@ -229,18 +243,21 @@ class FireBrowseDnloader(object):
         cancer : str
             Cancer name you want to download from FireBrowse, it must be a cancer type included in TCGA project.
         '''
-        store_dir = '/'.join([self.parental_dir, 'cnv', 'gene'])
-        log = self._fget(cancer=self.cancer, 
-                data_type='cnv',
-                store_dir=store_dir)
+
+        store_dir = '/'.join([self.parental_dir, 'CNV', 'gene'])
+        log = self._fget( data_type='cnv',store_dir=store_dir)
 
         if log != 'Success':
             return 'cnv:    '+log
 
-        cnv_gene = self._formatGistic(gistic_path=store_dir)
+        cnv_gene = self._formatGistic(
+            gistic_path='_'.join([store_dir, self.cancer]))
         for name, df in cnv_gene.items():
-            storeData(df=df, parental_dir=self.parental_dir,
+            mergeSampleToPatient(df)
+            storeData(df=df, parental_dir=store_dir,
                       sub_folder=name, cancer=self.cancer)
+        subprocess.call(
+            'rm -rf {}'.format('_'.join([store_dir, self.cancer])), shell=True)
 
         return 'Success'
 
@@ -255,28 +272,157 @@ class FireBrowseDnloader(object):
         cancer : str
             Cancer name you want to download from FireBrowse, it must be a cancer type included in TCGA project.
         '''
-
-        log = self._fget(
-            cancer=self.cancer,data_type='rppa',
-            store_dir=self.parental_dir
-        )
+        store_dir = '/'.join([self.parental_dir, 'RPPA'])
+       
+        log=self._fget(data_type='rppa',store_dir=store_dir)
 
         if log != 'Success':
             return 'RPPA:    '+log
 
         rppa = pd.read_table(
-            '/'.join([self.parental_dir, self.cancer]), index_col=0)
+            '_'.join([store_dir,self.cancer]), index_col=0)
         mergeSampleToPatient(rppa)
-        rppa.to_csv('/'.join([self.parental_dir, self.cancer]), sep='\t')
+
+        storeData(df=rppa, parental_dir=store_dir,
+                  sub_folder='', cancer=self.cancer)
+
+        subprocess.call(
+            'rm -rf {}'.format('_'.join([store_dir, self.cancer])), shell=True)
 
         return 'Success'
 
 
 
 class GdcDnloader(object):
-    def __init__(self, cancer, parental_dir,base_url="http://gdac.broadinstitute.org/runs"):
+    
+    def __init__(self, cancer, parental_dir, base_url="https://gdc.xenahubs.net/download/"):
+        # data-release-80
         self.cancer = cancer
         self.parental_dir = parental_dir
-        self.release_time = release_time
         self.base_url = base_url
-    
+        self.type_available = {
+                    'RNASeq': ['fpkm','count','fpkm_uq'],
+                    'SNV': ['muse',"mutect2","VarScan2","SomaticSnipe"]
+                }
+
+    def _fget(self, data_type, store_dir):
+        data_type_dict = {
+                'fpkm': "htseq_fpkm",
+                'count':"htseq_counts",
+                'fpkm_uq': "htseq_fpkm-uq",
+                'muse': "muse_snv",
+                "mutect2": "mutect2_snv",
+                "VarScan2": "varscan2_snv",
+                "SomaticSnipe":"somaticsniper_snv",
+                }
+
+        if not data_type in data_type_dict.keys():
+            raise KeyError("""
+            {0} is not a valid data type, only accept following input: {1}
+            """.format(data_type, ','.join(data_type_dict.keys())))
+        # https: // gdc.xenahubs.net/download/TCGA-CHOL/Xena_Matrices/TCGA-CHOL.htseq_fpkm.tsv.gz
+        subpath = 'TCGA-{cancer}/Xena_Matrices/TCGA-{cancer}.{data_type}.tsv.gz'
+        url = "/".join([self.base_url, subpath])
+
+        url = url.format(**dict(
+                cancer=self.cancer,
+                data_type=data_type_dict[data_type]
+                )
+            )
+        cmd = """
+        set -x
+        wget -v -O {store_dir}_{cancer}_{data_type}.gz {url}
+        gunzip {store_dir}_{cancer}_{data_type}.gz
+        mv {store_dir}_{cancer}_{data_type} {store_dir}_{cancer}
+        """.format(**dict(
+                store_dir=store_dir,
+                cancer=self.cancer,
+                url=url,
+                data_type=data_type,
+            )
+        )
+        try:
+            subprocess.call(cmd, shell=True)
+            log = 'Success'
+        except subprocess.CalledProcessError as e:
+                log = e
+
+        return log
+
+    def rnaseqWorkflow(self):
+        store_parental = '/'.join([self.parental_dir, 'RNASeq'])
+        for name in self.type_available['RNASeq']:
+            store_dir = '_'.join([self.parental_dir, 'RNASeq',name])
+            log = self._fget(data_type=name, store_dir=store_dir)
+
+            if log != 'Success':
+                return name+':    '+log
+            df = pd.read_table('_'.join([store_dir,self.cancer]),index_col=0)
+            df = mapEm2Gene(df)
+            
+            if name == 'fpkm':
+                tpm = tpmToFpkm(df, reverse=True)
+                for raw_name,raw_df in {'tpm':tpm,'fpkm':df}.items():
+                    tumor_zscore = calTNzcore(raw_df, pair_TN=False)
+                    storeData(df=tumor_zscore, parental_dir=store_parental,
+                            sub_folder=raw_name+'/zscore_tumor/', cancer=self.cancer)
+                    try:
+                        paired_zscore = calTNzcore(raw_df, pair_TN=True)
+                        storeData(df=paired_zscore, parental_dir=store_parental,
+                                sub_folder=raw_name+'/zscore_paired/', cancer=self.cancer)
+                    except ValueError:
+                        pass
+
+                    raw_name += '/origin'
+                    storeData(df=df, parental_dir=store_parental,
+                              sub_folder=raw_name, cancer=self.cancer)
+
+            else:
+                if name == 'count':
+                    df = df.round(0)
+                storeData(df=df, parental_dir=store_parental,
+                           sub_folder=name, cancer=self.cancer)
+
+            subprocess.call(
+                'rm -rf {}'.format('_'.join([store_dir, self.cancer])), shell=True)
+
+# data_type_dict = {
+#     'rnaseq': {
+#         'fpkm': "htseq_fpkm",
+#                 'count': "htseq_counts",
+#                 'fpkm_uq': "htseq_fpkm-uq",
+#     },
+#     'snv': {
+#         'muse': "muse_snv",
+#                 "mutect2": "mutect2_snv",
+#                 "VarScan2": "varscan2_snv",
+#                 "SomaticSnipe": "somaticsniper_snv",
+#     }
+# }
+# class mc3Dnloader(object):
+
+#     def __init__(self, store_dir, ref='hg19'):
+#         self.ref = ref
+#         self.store_dir = store_dir
+
+#     def download(self):
+#         cmd = ''' 
+#         set - x
+#         [-d {store_dir}/] | | mkdir - p {store_dir}/
+#         wget -v -O {store_dir}/mc3.gz {url} 
+#         tar -xvvf {store_dir}/mc3.gz -C {store_dir}/ --strip-components=1
+#         rm {store_dir}/mc3.gz
+#         '''
+
+#         if self.ref == 'hg19':
+#             url = 'https://api.gdc.cancer.gov/data/1c8cfe5f-e52d-41ba-94da-f15ea1337efc'
+#         else:
+#             url = ''
+
+#         cmd = cmd.format(**dict(
+#             store_dir=self.store_dir,
+#             url=url,
+#         )
+#         )
+#         subprocess.call()
+        
