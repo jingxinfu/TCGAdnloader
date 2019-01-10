@@ -7,19 +7,25 @@ import argparse
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Tools to download public genomic data", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    # parser.add_argument('-r', '--ref', type=str, required=True, help="Aligned Reference")
     parser.add_argument('-o', '--output', type=str, required=True, help="Output directory")
+    parser.add_argument('-r', '--ref', nargs='+',
+                        required=False, help="Aligned Reference",default=['hg19','hg38'])
+    parser.add_argument('-c', '--cancer', nargs='+',default=CANCER_LIST,
+                        required=False,help="Cancer type included")
+    parser.add_argument('-t', '--datatype', nargs='+', default=['rnaseq','cnv','rppa','snv'],
+                        required=False,help="Data type included")
   
     args = parser.parse_args()
 
-    for cancer in CANCER_LIST:
-            dl = downloader.FireBrowseDnloader(
-                parental_dir=args.output+'/hg19', cancer=cancer)
-            dl.rnaseqWorkflow()
-            dl.rppaWorkflow()
-            dl.cnvWorkflow()
+    for cancer in args.cancer:
+        if 'hg19' in args.ref:
+            dl = downloader.FireBrowseDnloader(parental_dir=args.output+'/hg19',
+                                               cancer=cancer,
+                                               workflow=args.datatype)
+            dl.run()
 
-    for cancer in CANCER_LIST:
-            dl = downloader.GdcDnloader(
-                parental_dir=args.output+'/hg38', cancer=cancer)
-            dl.rnaseqWorkflow()
+        if 'hg38' in args.ref:
+            dl = downloader.GdcDnloader(parental_dir=args.output+'/hg38',
+                                        cancer=cancer,
+                                        workflow=args.datatype)
+            dl.run()

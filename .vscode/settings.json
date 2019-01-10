@@ -1,4 +1,10 @@
 {
-    "python.pythonPath": "/Users/jingxin/miniconda2/envs/py3/bin/python"
-
+    "python.pythonPath": "/Users/jingxin/miniconda2/envs/py3/bin/python",
+    "sync-rsync.exclude": [
+        ".git",
+        ".vscode",
+        ".DS_Store"
+    ],
+    "sync-rsync.onSaveIndividual": true,
+    "sync-rsync.remote": "jxfu@kraken:/homes/jxfu/work/selfProj/dataCollection/",
 }

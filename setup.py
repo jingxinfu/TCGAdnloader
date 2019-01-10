@@ -7,6 +7,7 @@ VERSION = __import__(NAME).__version__
 try:
     f = open("requirements.txt", "rb")
     REQUIRES = [i.strip() for i in f.read().decode("utf-8").split("\n")]
+    f.close()
 except:
     print("'requirements.txt' not found!")
     REQUIRES = []
@@ -18,7 +19,7 @@ Data Collection
 
 def path_files(directory):
     paths = []
-    for (path, directories, filenames) in os.walk(directory):
+    for (path, _, filenames) in os.walk(directory):
         for filename in filenames:
             if filename[0] is not '.':  # filter hidden files
                 paths.append(os.path.join(

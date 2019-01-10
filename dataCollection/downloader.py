@@ -7,14 +7,26 @@ from .convertor import mergeSampleToPatient, calTNzcore, rmEntrez, tpmToFpkm, ma
 from .outformat import storeData
 
 
-class FireBrowseDnloader(object):
-    def __init__(self, cancer, parental_dir, release_time="2016_01_28", base_url="http://gdac.broadinstitute.org/runs"):
-         self.cancer = cancer
-         self.parental_dir = parental_dir
-         self.release_time = release_time
-         self.base_url = base_url
+class Workflow(object):
+    __slot__ = ['cancer', 'parental_dir', 'workflow']
+    def __init__(self,cancer,parental_dir,workflow):
+        self.cancer = cancer
+        self.parental_dir = parental_dir
+        self.workflow = workflow
 
-    
+
+    def run(self):
+        for n in self.workflow:
+            self.__getattribute__(n)()
+            
+
+class FireBrowseDnloader(Workflow):
+    # __slot__ = ['release_time']
+    def __init__(self, release_time="2016_01_28", base_url="http://gdac.broadinstitute.org/runs",**kwargs):
+        super(FireBrowseDnloader, self).__init__(**kwargs)
+        self.release_time = release_time
+        self.base_url = base_url
+        
     def _fget(self,data_type, store_dir):
         
         ''' Download level 3 data from FireBrowse
@@ -42,7 +54,7 @@ class FireBrowseDnloader(object):
             Run messages. Return 'Success' if no error occurs.
         '''
         # modifition to adapt CNV data on the function
-        if data_type =='cnv':
+        if data_type == 'cnv_gene_somatic':
             release_prefix = 'analyses'
             cancer_suffix = '-TP'
             if self.cancer == 'SKCM':
@@ -55,13 +67,17 @@ class FireBrowseDnloader(object):
             "rna_raw" : "Merge_rnaseqv2__illuminahiseq_rnaseqv2__unc_edu__Level_3__RSEM_genes__data.Level_3",
             "rna_norm": "Merge_rnaseqv2__illuminahiseq_rnaseqv2__unc_edu__Level_3__RSEM_genes_normalized__data.Level_3",
             "rppa": "RPPA_AnnotateWithGene.Level_3",
-            "cnv": "CopyNumber_Gistic2.Level_4",
+            "cnv_gene_somatic": "CopyNumber_Gistic2.Level_4",
+            "cnv_segment_somatic": "Merge_snp__genome_wide_snp_6__broad_mit_edu__Level_3__segmented_scna_minus_germline_cnv_hg19__seg.Level_3",
+            "cnv_segment_all": "Merge_snp__genome_wide_snp_6__broad_mit_edu__Level_3__segmented_scna_hg19__seg.Level_3",
         }
         keep_suffix_dict = {
             "rna_raw": "rnaseqv2__illuminahiseq_rnaseqv2__unc_edu__Level_3__RSEM_genes__data.data.txt",
             "rppa" : "rppa.txt",
             "rna_norm": "rnaseqv2__illuminahiseq_rnaseqv2__unc_edu__Level_3__RSEM_genes_normalized__data.data.txt",
-            "cnv": "by_genes.txt",
+            "cnv_gene_somatic": "by_genes.txt",
+            "cnv_segment_somatic": "snp__genome_wide_snp_6__broad_mit_edu__Level_3__segmented_scna_minus_germline_cnv_hg19__seg.seg.txt",
+            "cnv_segment_all": "snp__genome_wide_snp_6__broad_mit_edu__Level_3__segmented_scna_hg19__seg.seg.txt",
         }
 
 
@@ -160,7 +176,7 @@ class FireBrowseDnloader(object):
         
         return result
 
-    def rnaseqWorkflow(self):
+    def rnaseq(self):
         '''
         Workflow for downloading RNAseq data from FireBrowse and preprocessing data format.
 
@@ -232,7 +248,7 @@ class FireBrowseDnloader(object):
             'rm -rf {}'.format('_'.join([store_dir_norm, self.cancer])), shell=True)
         return 'Success'
 
-    def cnvWorkflow(self):
+    def cnv(self):
         '''
         Workflow for downloading copy number variation data from FireBrowse and preprocessing data format.
 
@@ -243,9 +259,9 @@ class FireBrowseDnloader(object):
         cancer : str
             Cancer name you want to download from FireBrowse, it must be a cancer type included in TCGA project.
         '''
-
-        store_dir = '/'.join([self.parental_dir, 'CNV', 'gene'])
-        log = self._fget( data_type='cnv',store_dir=store_dir)
+        ## Gene 
+        store_dir = '/'.join([self.parental_dir, 'CNV/somatic', 'gene'])
+        log = self._fget( data_type='cnv_gene_somatic',store_dir=store_dir)
 
         if log != 'Success':
             return 'cnv:    '+log
@@ -259,9 +275,26 @@ class FireBrowseDnloader(object):
         subprocess.call(
             'rm -rf {}'.format('_'.join([store_dir, self.cancer])), shell=True)
 
+        
+        ## Segment
+        for lv in ['somatic','all']:
+            store_dir = '/'.join([self.parental_dir, 'CNV/'+lv, 'segment'])
+            log = self._fget(data_type='cnv_segment_'+lv, store_dir=store_dir)
+
+            if log != 'Success':
+                return 'cnv:    '+log
+
+            if not os.path.exists(store_dir):
+                    os.makedirs(store_dir)
+            subprocess.call(
+                'mv {0} {1}'.format('_'.join([store_dir, self.cancer]),
+                                    '/'.join([store_dir, self.cancer])
+                                    ),
+                    shell=True)
+        
         return 'Success'
 
-    def rppaWorkflow(self):
+    def rppa(self):
         '''
         Workflow for downloading RPPA data from FireBrowse and preprocessing data format.
 
@@ -291,18 +324,21 @@ class FireBrowseDnloader(object):
 
         return 'Success'
 
-
-
-class GdcDnloader(object):
-    
-    def __init__(self, cancer, parental_dir, base_url="https://gdc.xenahubs.net/download/"):
+    def snv(self):
+        print('''
+            Please use MC3 downloader to fetch the SNV result for all cancer in TCGA, 
+            which is more robust.
+        ''')
+class GdcDnloader(Workflow):
+    __slot__ = ['type_available', 'base_url']
+    def __init__(self, base_url="https://gdc.xenahubs.net/download/",**kwargs):
+        super(GdcDnloader, self).__init__(**kwargs)
         # data-release-80
-        self.cancer = cancer
-        self.parental_dir = parental_dir
         self.base_url = base_url
         self.type_available = {
                     'RNASeq': ['fpkm','count','fpkm_uq'],
-                    'SNV': ['muse',"mutect2","VarScan2","SomaticSnipe"]
+                    'SNV': ['muse',"mutect2","VarScan2","SomaticSnipe"],
+                    'cnv': ['somatic','all']
                 }
 
     def _fget(self, data_type, store_dir):
@@ -331,9 +367,9 @@ class GdcDnloader(object):
             )
         cmd = """
         set -x
-        wget -v -O {store_dir}_{cancer}_{data_type}.gz {url}
-        gunzip {store_dir}_{cancer}_{data_type}.gz
-        mv {store_dir}_{cancer}_{data_type} {store_dir}_{cancer}
+        wget -v -O {store_dir}_{cancer}_{data_type}_tmp.gz {url}
+        gunzip {store_dir}_{cancer}_{data_type}_tmp.gz
+        mv {store_dir}_{cancer}_{data_type}_tmp {store_dir}_{cancer}
         """.format(**dict(
                 store_dir=store_dir,
                 cancer=self.cancer,
@@ -349,21 +385,25 @@ class GdcDnloader(object):
 
         return log
 
-    def rnaseqWorkflow(self):
+    def rnaseq(self):
         store_parental = '/'.join([self.parental_dir, 'RNASeq'])
+        if not os.path.isdir(store_parental):
+            os.makedirs(store_parental)
         for name in self.type_available['RNASeq']:
-            store_dir = '_'.join([self.parental_dir, 'RNASeq',name])
+            store_dir = '_'.join([store_parental, name])
             log = self._fget(data_type=name, store_dir=store_dir)
 
             if log != 'Success':
                 return name+':    '+log
             df = pd.read_table('_'.join([store_dir,self.cancer]),index_col=0)
+            mergeSampleToPatient(df)
             df = mapEm2Gene(df)
             
             if name == 'fpkm':
                 tpm = tpmToFpkm(df, reverse=True)
                 for raw_name,raw_df in {'tpm':tpm,'fpkm':df}.items():
                     tumor_zscore = calTNzcore(raw_df, pair_TN=False)
+                    
                     storeData(df=tumor_zscore, parental_dir=store_parental,
                             sub_folder=raw_name+'/zscore_tumor/', cancer=self.cancer)
                     try:
@@ -373,19 +413,41 @@ class GdcDnloader(object):
                     except ValueError:
                         pass
 
-                    raw_name += '/origin'
                     storeData(df=df, parental_dir=store_parental,
-                              sub_folder=raw_name, cancer=self.cancer)
+                              sub_folder=raw_name+'/origin', cancer=self.cancer)
 
             else:
                 if name == 'count':
                     df = df.round(0)
                 storeData(df=df, parental_dir=store_parental,
-                           sub_folder=name, cancer=self.cancer)
+                          sub_folder=name+'/origin', cancer=self.cancer)
 
             subprocess.call(
                 'rm -rf {}'.format('_'.join([store_dir, self.cancer])), shell=True)
+                
+    def snv(self):
+        store_parental = '/'.join([self.parental_dir, 'SNV'])
+        for name in self.type_available['SNV']:
+            store_dir = '_'.join([store_parental, name])
+            log = self._fget(data_type=name, store_dir=store_dir)
 
+            if log != 'Success':
+                return name+':    '+log
+            
+            if not os.path.exists(store_dir):
+                os.makedirs(store_dir)
+            subprocess.call(
+                'mv {0} {1}'.format('_'.join([store_dir, self.cancer]),
+                                    '/'.join([store_dir, self.cancer])
+                                    ),
+                 shell=True)
+
+    def cnv(self):
+        pass
+    
+    def rppa(self):
+        print('RPPA data for hg38 is not available.')
+        
 # data_type_dict = {
 #     'rnaseq': {
 #         'fpkm': "htseq_fpkm",
