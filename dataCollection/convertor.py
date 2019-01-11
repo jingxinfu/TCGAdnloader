@@ -82,7 +82,7 @@ def calTNzcore(df,pair_TN = True):
     return result
 
 
-def mergeSampleToPatient(df):
+def mergeSampleToPatient(df,transpose=False):
     '''
     A inplace function.
     Changes samples level profile into patient level, but keep tumor and normal information.
@@ -101,8 +101,13 @@ def mergeSampleToPatient(df):
         TCGA-OR-A5J1-01 tumor
         TCGA-OR-A5J1-11 normal
     '''
-    df.columns = df.columns.map(lambda x: '-'.join(x.split('-')[:4])[:-1])
-    df = df.T.groupby(level=0).mean().T
+    if transpose is True:
+        df.index = df.index.map(lambda x: '-'.join(x.split('-')[:4])[:-1])
+        df = df.groupby(level=0).mean().T
+    else:
+        df.columns = df.columns.map(lambda x: '-'.join(x.split('-')[:4])[:-1])
+        df = df.T.groupby(level=0).mean().T
+
 
 def tpmToFpkm(df,reverse=False):
     ''' Conversion between TPM and FPKM/RPKM
@@ -133,4 +138,48 @@ def tpmToFpkm(df,reverse=False):
         fpkm = (df * row_sum) / 10e3
         return fpkm
 
+def formatClin(df,data_type='survival'):
 
+    df.rename(columns={'bcr_patient_barcode': 'patient'}, inplace=True)
+
+    if data_type == 'survival':
+        df.replace('[Not Available]', np.nan, inplace=True)
+        df.replace('[Not Applicable]', np.nan, inplace=True)
+        df.replace('[Discrepancy]', np.nan, inplace=True)
+
+        df['OS_Event'] = df['vital_status'].map({'Dead': 1, 'Alive': 0})
+        
+        df['OS'] = df[["days_to_last_followup", "days_to_death"]].apply(
+            pd.to_numeric).max(axis=1)
+        df['age'] = pd.to_numeric(df['age_at_initial_pathologic_diagnosis'])
+
+        df = df[['patient','OS','OS_Event','age']]
+        df = df.groupby('patient').max()
+        return df
+
+    if data_type == 'patient':
+
+        df['gender'] = df['gender'].map({'FEMALE': 1, "MALE":2})
+        df['stage'] = df['ajcc_pathologic_tumor_stage'].map(
+                                {
+                                    '[Not Available]': np.nan,
+                                    'STAGE I': 1,
+                                    'STAGE II': 2,
+                                    'STAGE III': 3,
+                                    'Stage IV':4,
+                                    'Stage V': 5,
+                                    'Stage VI': 6,
+                                    'Stage VII': 7,
+                                    'Stage VIII': 8,
+                                    'Stage IX': 9,
+                                    'Stage X': 10,
+                                }
+                             )
+        df.replace('[Not Available]', np.nan, inplace=True)
+        df.replace('[Not Applicable]', np.nan, inplace=True)
+        df.rename(columns={'histologic_diagnosis': 'diagnosis'}, inplace=True)
+
+        return df[['patient', 'gender', 'stage', 'diagnosis']].set_index('patient').apply(
+            pd.to_numeric)
+
+    return df

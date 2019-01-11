@@ -3,8 +3,103 @@
 import subprocess, os
 import pandas as pd
 import numpy as np
-from .convertor import mergeSampleToPatient, calTNzcore, rmEntrez, tpmToFpkm, mapEm2Gene
+from .convertor import mergeSampleToPatient, calTNzcore, rmEntrez, tpmToFpkm, mapEm2Gene, formatClin
 from .outformat import storeData
+import requests,json,re,io
+from .setting import CLIN_INFO, Biospecimen_INFO, Biospecimen_MAP
+
+class GdcApi(object):
+    __slot__ = ["files_endpt", "data_endpt", "cancer"]
+
+    def __init__(self, cancer, data_endpt="https://api.gdc.cancer.gov/data", files_endpt="https://api.gdc.cancer.gov/files", **kwargs):
+        self.files_endpt = files_endpt
+        self.data_endpt = data_endpt
+        self.cancer = cancer
+
+    def _contructFilter(self, data_type,version='4'):
+        dtype_dict = {
+            'gistic': '{}.focal_score_by_genes.txt'.format(self.cancer.upper()),
+            'aliquot': "nationwidechildrens.org_biospecimen_aliquot_{}.txt".format(self.cancer.lower()),
+            'survival': "nationwidechildrens.org_clinical_follow_up_v{0}.0_{1}.txt".format(version,self.cancer.lower()),
+            'patient': "nationwidechildrens.org_clinical_patient_{}.txt".format(self.cancer.lower()),
+            'slide': "nationwidechildrens.org_biospecimen_slide_{}.txt".format(self.cancer.lower()),
+            'auxilary': "nationwidechildrens.org_auxiliary_{}.txt".format(self.cancer.lower()),
+        }
+        filters = {
+            "op": "in",
+            "content": {
+                "field": "files.file_name",
+                "value": [
+                    dtype_dict[data_type]
+                ]
+            }
+        }
+        self._params = {
+            "filters": json.dumps(filters),
+            "format": "JSON",
+            "size": "1"
+        }
+
+    def _fetchFileID(self):
+        self.file_uuid_list = []
+        response = requests.get(self.files_endpt, params=self._params)
+        for file_entry in json.loads(response.content.decode("utf-8"))["data"]["hits"]:
+            self.file_uuid_list.append(file_entry["file_id"])
+
+    def getTable(self, data_type, **kwargs):
+        version = 4
+        while True:
+            self._contructFilter(data_type,str(version))
+            self._fetchFileID()
+            if len(self.file_uuid_list) > 0:
+                break
+            if version < 0:
+                return None,'Not Found'
+            version -= 1
+        
+        params = {"ids": self.file_uuid_list}
+        response = requests.post(self.data_endpt, data=json.dumps(
+            params), headers={"Content-Type": "application/json"})
+        df = pd.read_table(io.StringIO(
+            response.content.decode("utf-8")), **kwargs)
+        return df,None
+
+    def clin(self):
+        # TODO FIX The os problem
+        # slide info and auxilary info
+        read_to_merge=[]
+        for k,v in CLIN_INFO.items():
+            meta,errors = self.getTable(data_type=k)
+            meta.columns = meta.iloc[0,:]
+            meta = meta.iloc[2:,]
+            meta = meta[meta.columns.intersection(v)]
+            non_info = pd.Index(v).difference(meta.columns)
+            for c in non_info:
+                meta[c] = '[Not Applicable]'
+
+            meta = formatClin(meta, data_type=k)
+            read_to_merge.append(meta)
+        basic_clin = pd.concat(read_to_merge,axis=1,)
+        print(basic_clin.head())
+
+    def biospecimen(self):
+        for k, v in Biospecimen_INFO.items():
+            meta, errors = self.getTable(data_type=k)
+            if errors == None:
+                meta = meta[meta.columns.intersection(
+                    v)].drop(0, axis=0)
+                non_info = pd.Index(v).difference(meta.columns)
+                for c in non_info:
+                    meta[c] = '[Not Available]'
+                meta = meta.rename(columns=Biospecimen_MAP[k]).set_index('patient')
+                meta.replace('[Not Available]', np.nan, inplace=True)
+                meta.replace('[Not Applicable]', np.nan, inplace=True)
+
+                if k != 'auxilary':
+                    meta = meta.apply(pd.to_numeric)
+                    mergeSampleToPatient(meta,transpose=True)
+
+                print(meta.head())
 
 
 class Workflow(object):
@@ -168,7 +263,8 @@ class FireBrowseDnloader(Workflow):
     
     def _formatGistic(self, gistic_path):
         result = {
-            "continuous": '{}/all_data_by_genes.txt',
+            "broad_focal": '{}/all_data_by_genes.txt',
+            "focal": '{}/focal_data_by_genes.txt',
             "threds": '{}/all_thresholded.by_genes.txt'
         }
         for k,v in result.items():
@@ -329,10 +425,14 @@ class FireBrowseDnloader(Workflow):
             Please use MC3 downloader to fetch the SNV result for all cancer in TCGA, 
             which is more robust.
         ''')
-class GdcDnloader(Workflow):
+
+
+class GdcDnloader(GdcApi, Workflow):
     __slot__ = ['type_available', 'base_url']
     def __init__(self, base_url="https://gdc.xenahubs.net/download/",**kwargs):
-        super(GdcDnloader, self).__init__(**kwargs)
+        Workflow.__init__(self,**kwargs)
+        GdcApi.__init__(self, cancer=self.cancer)
+        # super(GdcDnloader, self).__init__(data_endpt="https://api.gdc.cancer.gov/data",files_endpt="https://api.gdc.cancer.gov/files",**kwargs)
         # data-release-80
         self.base_url = base_url
         self.type_available = {
@@ -443,11 +543,33 @@ class GdcDnloader(Workflow):
                  shell=True)
 
     def cnv(self):
-        pass
+        store_parental = '/'.join([self.parental_dir, 'CNV'])
+        # focal data
+        df = self.getTable(data_type='gistic').set_index(
+            'Gene Symbol').drop(['Gene ID', 'Cytoband'],axis=1)
+
+        ## map uuid to barcode
+        meta, errors = self.getTable(data_type='aliquot').dropna(
+            axis=0).set_index('bcr_aliquot_uuid')
+
+        meta.index =  meta.index.map(lambda x:x.lower())
+        meta = meta['bcr_sample_barcode'].to_dict()
+        df.columns = df.columns.map(meta)
+
+        mergeSampleToPatient(df)
+        df = mapEm2Gene(df)
+        storeData(df=df, parental_dir=store_parental,
+                  sub_folder='focal', cancer=self.cancer)
+                  
+        return 'Success'
+       
+
     
     def rppa(self):
         print('RPPA data for hg38 is not available.')
-        
+
+
+       
 # data_type_dict = {
 #     'rnaseq': {
 #         'fpkm': "htseq_fpkm",

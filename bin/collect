@@ -16,16 +16,23 @@ if __name__ == "__main__":
                         required=False,help="Data type included")
   
     args = parser.parse_args()
+    
+    # for cancer in args.cancer:
+    #     if 'hg19' in args.ref:
+    #         dl = downloader.FireBrowseDnloader(parental_dir=args.output+'/hg19',
+    #                                            cancer=cancer,
+    #                                            workflow=args.datatype)
+    #         dl.run()
 
-    for cancer in args.cancer:
-        if 'hg19' in args.ref:
-            dl = downloader.FireBrowseDnloader(parental_dir=args.output+'/hg19',
-                                               cancer=cancer,
-                                               workflow=args.datatype)
-            dl.run()
-
-        if 'hg38' in args.ref:
-            dl = downloader.GdcDnloader(parental_dir=args.output+'/hg38',
-                                        cancer=cancer,
-                                        workflow=args.datatype)
-            dl.run()
+    #     if 'hg38' in args.ref:
+    #         dl = downloader.GdcDnloader(parental_dir=args.output+'/hg38',
+    #                                     cancer=cancer,
+    #                                     workflow=args.datatype)
+    #         dl.run()
+    # dl = downloader.GdcDnloader(parental_dir=args.output+'/hg38',
+    #                             cancer='ACC',
+    #                             workflow=['cnv'])
+    # dl.run()
+    dl = downloader.GdcApi(cancer='COAD')
+    dl.biospecimen()
+    dl.clin()
