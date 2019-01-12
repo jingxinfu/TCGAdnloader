@@ -3,26 +3,28 @@
 import subprocess, os
 import pandas as pd
 import numpy as np
-from .convertor import mergeSampleToPatient, calTNzcore, rmEntrez, tpmToFpkm, mapEm2Gene, formatClin
+from .convertor import mergeSampleToPatient, calTNzcore, rmEntrez, tpmToFpkm, mapEm2Gene, formatClin, pick
 from .outformat import storeData
 import requests,json,re,io
-from .setting import CLIN_INFO, Biospecimen_INFO, Biospecimen_MAP
+from .setting import CLIN_INFO, Biospecimen_INFO, Biospecimen_MAP, PAM50_PATH
 
 class GdcApi(object):
-    __slot__ = ["files_endpt", "data_endpt", "cancer"]
+    __slot__ = ["files_endpt", "data_endpt", "cancer", "parental_dir"]
 
-    def __init__(self, cancer, data_endpt="https://api.gdc.cancer.gov/data", files_endpt="https://api.gdc.cancer.gov/files", **kwargs):
+    def __init__(self, cancer, parental_dir,data_endpt="https://api.gdc.cancer.gov/data", files_endpt="https://api.gdc.cancer.gov/files", **kwargs):
         self.files_endpt = files_endpt
         self.data_endpt = data_endpt
         self.cancer = cancer
+        self.parental_dir = parental_dir
 
     def _contructFilter(self, data_type,version='4'):
         dtype_dict = {
             'gistic': '{}.focal_score_by_genes.txt'.format(self.cancer.upper()),
-            'aliquot': "nationwidechildrens.org_biospecimen_aliquot_{}.txt".format(self.cancer.lower()),
             'survival': "nationwidechildrens.org_clinical_follow_up_v{0}.0_{1}.txt".format(version,self.cancer.lower()),
             'patient': "nationwidechildrens.org_clinical_patient_{}.txt".format(self.cancer.lower()),
+            'aliquot': "nationwidechildrens.org_biospecimen_aliquot_{}.txt".format(self.cancer.lower()),
             'slide': "nationwidechildrens.org_biospecimen_slide_{}.txt".format(self.cancer.lower()),
+            'sample': "nationwidechildrens.org_biospecimen_sample_{}.txt".format(self.cancer.lower()),
             'auxilary': "nationwidechildrens.org_auxiliary_{}.txt".format(self.cancer.lower()),
         }
         filters = {
@@ -65,41 +67,77 @@ class GdcApi(object):
         return df,None
 
     def clin(self):
-        # TODO FIX The os problem
-        # slide info and auxilary info
         read_to_merge=[]
         for k,v in CLIN_INFO.items():
-            meta,errors = self.getTable(data_type=k)
+            meta,_ = self.getTable(data_type=k)
             meta.columns = meta.iloc[0,:]
             meta = meta.iloc[2:,]
             meta = meta[meta.columns.intersection(v)]
             non_info = pd.Index(v).difference(meta.columns)
+            
             for c in non_info:
                 meta[c] = '[Not Applicable]'
 
             meta = formatClin(meta, data_type=k)
             read_to_merge.append(meta)
-        basic_clin = pd.concat(read_to_merge,axis=1,)
-        print(basic_clin.head())
+
+        basic_clin = pd.concat(read_to_merge,join='outer',axis=1,sort=True)
+        
+        storeData(basic_clin,parental_dir=self.parental_dir,
+                  sub_folder='Surv',cancer=self.cancer)
 
     def biospecimen(self):
-        for k, v in Biospecimen_INFO.items():
-            meta, errors = self.getTable(data_type=k)
-            if errors == None:
-                meta = meta[meta.columns.intersection(
-                    v)].drop(0, axis=0)
-                non_info = pd.Index(v).difference(meta.columns)
-                for c in non_info:
-                    meta[c] = '[Not Available]'
-                meta = meta.rename(columns=Biospecimen_MAP[k]).set_index('patient')
-                meta.replace('[Not Available]', np.nan, inplace=True)
-                meta.replace('[Not Applicable]', np.nan, inplace=True)
 
-                if k != 'auxilary':
-                    meta = meta.apply(pd.to_numeric)
-                    mergeSampleToPatient(meta,transpose=True)
+        for sub_folder,files in Biospecimen_INFO.items():
+            read_to_merge = []
+            for k, v in files.items():
+                meta, errors = self.getTable(data_type=k)
+                if errors == None:
+                    meta = meta[meta.columns.intersection(
+                        v)].drop(1, axis=0)
+                    non_info = pd.Index(v).difference(meta.columns)
+                    for c in non_info:
+                        meta[c] = '[Not Available]'
 
-                print(meta.head())
+                    if k == 'sample':
+                        meta.rename(
+                            columns={'bcr_sample_barcode': 'patient'}, inplace=True)
+                        meta.set_index('patient', inplace=True)
+                        print(meta.index)
+                        meta.index = meta.index.map(lambda x: x[:-1])
+                        
+                        meta = pick(df=meta, source='tumor')
+
+                    else:
+                        meta.rename(columns=Biospecimen_MAP,inplace=True)
+                        meta.set_index('patient',inplace=True)
+                    
+                    meta.replace('[Not Available]', np.nan, inplace=True)
+                    meta.replace('[Not Applicable]', np.nan, inplace=True)
+
+                    if k == 'slide':
+                        meta = meta.apply(pd.to_numeric)
+                        mergeSampleToPatient(meta,transpose=True)
+
+                    if k == 'sample' and self.cancer == 'BRCA':
+                        pam50 = pd.read_table(PAM50_PATH, index_col=0)[
+                            'PAM50 mRNA'].to_frame()
+                        meta = meta.merge(pam50, left_index=True,right_index=True,how='left')
+
+                    read_to_merge.append(meta)
+
+            storeData(pd.concat(read_to_merge,axis=1,join='outer'),
+                     parental_dir=self.parental_dir,
+                     sub_folder=sub_folder,cancer=self.cancer)
+
+                # 
+
+        # if len(read_to_merge)>1:
+        #     basic_bios = pd.concat(read_to_merge, join='outer',axis=1)
+        # else:
+        #     basic_bios = read_to_merge[0]
+
+        # print(basic_bios.head())
 
 
 class Workflow(object):
@@ -431,7 +469,7 @@ class GdcDnloader(GdcApi, Workflow):
     __slot__ = ['type_available', 'base_url']
     def __init__(self, base_url="https://gdc.xenahubs.net/download/",**kwargs):
         Workflow.__init__(self,**kwargs)
-        GdcApi.__init__(self, cancer=self.cancer)
+        GdcApi.__init__(self, cancer=self.cancer,parental_dir=self.parental_dir)
         # super(GdcDnloader, self).__init__(data_endpt="https://api.gdc.cancer.gov/data",files_endpt="https://api.gdc.cancer.gov/files",**kwargs)
         # data-release-80
         self.base_url = base_url
@@ -545,11 +583,12 @@ class GdcDnloader(GdcApi, Workflow):
     def cnv(self):
         store_parental = '/'.join([self.parental_dir, 'CNV'])
         # focal data
-        df = self.getTable(data_type='gistic').set_index(
-            'Gene Symbol').drop(['Gene ID', 'Cytoband'],axis=1)
+        df,_ = self.getTable(data_type='gistic')
+        df = df.set_index('Gene Symbol').drop(['Gene ID', 'Cytoband'],axis=1)
 
         ## map uuid to barcode
-        meta, errors = self.getTable(data_type='aliquot').dropna(
+        meta, errors = self.getTable(data_type='aliquot')
+        meta = meta.dropna(
             axis=0).set_index('bcr_aliquot_uuid')
 
         meta.index =  meta.index.map(lambda x:x.lower())

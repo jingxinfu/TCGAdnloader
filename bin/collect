@@ -33,6 +33,6 @@ if __name__ == "__main__":
     #                             cancer='ACC',
     #                             workflow=['cnv'])
     # dl.run()
-    dl = downloader.GdcApi(cancer='COAD')
+    dl = downloader.GdcApi(cancer='BRCA', parental_dir=args.output)
     dl.biospecimen()
     dl.clin()

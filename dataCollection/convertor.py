@@ -3,7 +3,7 @@
 import pandas as pd
 import numpy as np
 import os
-from .setting import ANNO_PATH
+from .setting import ANNO_PATH, CLIN_MAP
 
 def rmEntrez(df):
     ''' Format gene expression profile with gene symbol index
@@ -138,34 +138,30 @@ def tpmToFpkm(df,reverse=False):
         fpkm = (df * row_sum) / 10e3
         return fpkm
 
-def formatClin(df,data_type='survival'):
 
-    df.rename(columns={'bcr_patient_barcode': 'patient'}, inplace=True)
+def formatClin(df,data_type='survival'):
+    df.rename(columns=CLIN_MAP,inplace=True)
+    df.replace('[Not Available]', np.nan, inplace=True)
+    df.replace('[Not Applicable]', np.nan, inplace=True)
+    df.replace('[Discrepancy]', np.nan, inplace=True)
 
     if data_type == 'survival':
-        df.replace('[Not Available]', np.nan, inplace=True)
-        df.replace('[Not Applicable]', np.nan, inplace=True)
-        df.replace('[Discrepancy]', np.nan, inplace=True)
-
-        df['OS_Event'] = df['vital_status'].map({'Dead': 1, 'Alive': 0})
         
-        df['OS'] = df[["days_to_last_followup", "days_to_death"]].apply(
+        df['OS_Event'] = df['OS_Event'].map({'Dead': 1, 'Alive': 0})
+        df['OS'] = df[['days_to_death', 'days_to_last_followup', ]].apply(
             pd.to_numeric).max(axis=1)
-        df['age'] = pd.to_numeric(df['age_at_initial_pathologic_diagnosis'])
-
-        df = df[['patient','OS','OS_Event','age']]
         df = df.groupby('patient').max()
+        df.index.name = 'patient'
         return df
 
     if data_type == 'patient':
-
-        df['gender'] = df['gender'].map({'FEMALE': 1, "MALE":2})
-        df['stage'] = df['ajcc_pathologic_tumor_stage'].map(
+        df['age'] = pd.to_numeric(df['age'])
+        df['gender'] = pd.to_numeric(df['gender'].map({'FEMALE': 1, "MALE": 2}))
+        df['stage'] =df['stage'].map(
                                 {
-                                    '[Not Available]': np.nan,
-                                    'STAGE I': 1,
-                                    'STAGE II': 2,
-                                    'STAGE III': 3,
+                                    'Stage I': 1,
+                                    'Stage II': 2,
+                                    'Stage III': 3,
                                     'Stage IV':4,
                                     'Stage V': 5,
                                     'Stage VI': 6,
@@ -175,11 +171,7 @@ def formatClin(df,data_type='survival'):
                                     'Stage X': 10,
                                 }
                              )
-        df.replace('[Not Available]', np.nan, inplace=True)
-        df.replace('[Not Applicable]', np.nan, inplace=True)
-        df.rename(columns={'histologic_diagnosis': 'diagnosis'}, inplace=True)
 
-        return df[['patient', 'gender', 'stage', 'diagnosis']].set_index('patient').apply(
-            pd.to_numeric)
+        return df.set_index('patient')
 
     return df
