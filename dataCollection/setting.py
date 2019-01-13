@@ -23,7 +23,8 @@ Biospecimen_INFO = {
         
     },
     "patient_pheno":{
-        # "sample": ['bcr_sample_barcode', 'sample_type'],
+        # "sample": ['bcr_sample_barcode', 'sample_type'],  : commented out because we can get sample type by TCGA barcode.
+
         "auxilary": [
                 'bcr_patient_barcode', 'hpv_status',
                 'mononucleotide_and_dinucleotide_marker_panel_analysis_status'
@@ -67,6 +68,4 @@ CLIN_MAP = {
 # ]
 CANCER_LIST = ['BRCA']
 
-# RNASEQ_DIR = '../RNASeq'
-# CNV_DIR = '../CNV'
-# RPPA_DIR = '../RPPA'
+

@@ -9,18 +9,36 @@ git clone git@github.com:jingxinfu/dataCollection.git
 cd dataCollection
 pip install .
 ```
+## Usage:
+```
+usage: collect [-h] -o OUTPUT [-r REF [REF ...]] [-c CANCER [CANCER ...]]
+               [-t DATATYPE [DATATYPE ...]]
 
-## Data Structure:
+Tools to download public genomic data
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -o OUTPUT, --output OUTPUT
+                        Output directory (default: None)
+  -r REF [REF ...], --ref REF [REF ...]
+                        Aligned Reference (default: ['hg19', 'hg38'])
+  -c CANCER [CANCER ...], --cancer CANCER [CANCER ...]
+                        Cancer type included (default: ['BRCA'])
+  -t DATATYPE [DATATYPE ...], --datatype DATATYPE [DATATYPE ...]
+                        Data type included (default: ['rnaseq', 'cnv', 'rppa',
+                        'snv'])
+```
+##  Output Data Structure:
 ### Overview
 ```
-.
+(output directory)
 ├── hg19
 │   ├── CNV  
 │   │   ├── all
 │   │   │   └── segment
 │   │   └── somatic
 │   │       ├── gene
-│   │       │   ├── broad_focal #(Both of broad and focal)
+│   │       │   ├── broad_focal
 │   │       │   ├── focal
 │   │       │   └── threds
 │   │       └── segment

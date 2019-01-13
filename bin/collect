@@ -29,12 +29,5 @@ if __name__ == "__main__":
                                         cancer=cancer,
                                         workflow=args.datatype)
             dl.run()
-            
-    # dl = downloader.GdcDnloader(parental_dir=args.output+'/hg38',
-    #                             cancer='CHOL',
-    #                             workflow=['cnv'])
-    # dl.run()
 
-    # dl = downloader.GdcApi(cancer='ACC', parental_dir=args.output)
-    # dl.biospecimen()
-    # dl.clin()
+   
