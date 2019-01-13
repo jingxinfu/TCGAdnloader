@@ -405,17 +405,19 @@ class FireBrowseDnloader(Workflow):
         for name, df in raw_rnaseq.items():
             df = rmEntrez(df)
             if name in ['fpkm','tpm']:
-                tumor_zscore = calTNzcore(df,pair_TN=False)
+                log_df = np.log2( 1+ df )
+                tumor_zscore = calTNzcore(log_df, pair_TN=False)
                 storeData(df=tumor_zscore, parental_dir=store_dir,
                           sub_folder=name+'/zscore_tumor/', cancer=self.cancer)
                 try:
-                    paired_zscore = calTNzcore(df, pair_TN=True)
+                    paired_zscore = calTNzcore(log_df, pair_TN=True)
                     storeData(df=paired_zscore, parental_dir=store_dir,
                             sub_folder=name+'/zscore_paired/', cancer=self.cancer)
                 except ValueError:
                     pass
 
                 name += '/origin'
+
             storeData(df = df, parental_dir = store_dir,
                     sub_folder=name, cancer=self.cancer)
 
@@ -593,19 +595,21 @@ class GdcDnloader(GdcApi, Workflow):
 
             if log != 'Success':
                 return name+':    '+log
+
             df = pd.read_table('_'.join([store_dir,self.cancer]),index_col=0)
+            df = np.exp2(df) - 1  # since all matrix download from xenas have been log transformed
             df = mergeSampleToPatient(df)
             df = mapEm2Gene(df)
             
             if name == 'fpkm':
                 tpm = tpmToFpkm(df, reverse=True)
                 for raw_name,raw_df in {'tpm':tpm,'fpkm':df}.items():
-                    tumor_zscore = calTNzcore(raw_df, pair_TN=False)
-                    
+                    log_df = np.log2(1 + raw_df)
+                    tumor_zscore = calTNzcore(log_df, pair_TN=False)
                     storeData(df=tumor_zscore, parental_dir=store_parental,
                             sub_folder=raw_name+'/zscore_tumor/', cancer=self.cancer)
                     try:
-                        paired_zscore = calTNzcore(raw_df, pair_TN=True)
+                        paired_zscore = calTNzcore(log_df, pair_TN=True)
                         storeData(df=paired_zscore, parental_dir=store_parental,
                                 sub_folder=raw_name+'/zscore_paired/', cancer=self.cancer)
                     except ValueError:
@@ -666,13 +670,13 @@ class GdcDnloader(GdcApi, Workflow):
         df, _ = self.getTable(data_type='cnv_segment_somatic', by_name=False)
         df['GDC_Aliquot'] = df['GDC_Aliquot'].map(meta)
         storeData(df=df, parental_dir=store_parental,
-                  sub_folder='all/segment', cancer=self.cancer)
+                  sub_folder='somatic/segment', cancer=self.cancer,index=False)
 
         # all 
         df, _ = self.getTable(data_type='cnv_segment_all', by_name=False)
         df['GDC_Aliquot'] = df['GDC_Aliquot'].map(meta)
         storeData(df=df, parental_dir=store_parental,
-                  sub_folder='all/segment', cancer=self.cancer)
+                  sub_folder='all/segment', cancer=self.cancer, index=False)
 
         return 'Success'
        
@@ -681,21 +685,6 @@ class GdcDnloader(GdcApi, Workflow):
     def rppa(self):
         print('RPPA data for hg38 is not available.')
 
-
-       
-# data_type_dict = {
-#     'rnaseq': {
-#         'fpkm': "htseq_fpkm",
-#                 'count': "htseq_counts",
-#                 'fpkm_uq': "htseq_fpkm-uq",
-#     },
-#     'snv': {
-#         'muse': "muse_snv",
-#                 "mutect2": "mutect2_snv",
-#                 "VarScan2": "varscan2_snv",
-#                 "SomaticSnipe": "somaticsniper_snv",
-#     }
-# }
 # class mc3Dnloader(object):
 
 #     def __init__(self, store_dir, ref='hg19'):
