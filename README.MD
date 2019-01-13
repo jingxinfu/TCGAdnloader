@@ -8,22 +8,7 @@ pip install .
 ```
 
 ## Data Structure:
-- CNV
-  - broad_focal : Region reaches significance due to either broad or focal event
-- RNA-Seq
-  - origin:
-  - zscore_paired : 
-    - log2(x+1)
-    - minus the average across normal samples
-  - zscore_tumor : 
-    - pick up tumor samples
-    - log2(x+1)
-    - minus the average across samples
-  - fpkm_uq :
-    - A modified version of the FPKM formula in which the 75th percentile read count is used as the denominator in place of the total number of protein-coding reads
-  
-- RPPA
-  - Only available for hg19
+### Overview
 ```
 .
 ├── hg19
@@ -72,3 +57,20 @@ pip install .
     ├── SNV_SomaticSnipe
     └── SNV_VarScan2
 ```
+### Detial
+- CNV
+  - broad_focal : Region reaches significance due to either broad or focal event
+- RNA-Seq
+  - origin:
+  - zscore_paired : 
+    - log2(x+1)
+    - minus the average across normal samples
+  - zscore_tumor : 
+    - pick up tumor samples
+    - log2(x+1)
+    - minus the average across samples
+  - fpkm_uq :
+    - A modified version of the FPKM formula in which the 75th percentile read count is used as the denominator in place of the total number of protein-coding reads
+  
+- RPPA
+  - Only available for hg19
