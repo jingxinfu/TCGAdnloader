@@ -1,7 +1,7 @@
 from setuptools import setup
 import os,re
 
-NAME = 'dataCollection'
+NAME = 'TCGAdnloader'
 PACKAGE = [NAME]
 VERSION = __import__(NAME).__version__
 try:
@@ -33,14 +33,14 @@ def main():
     setup(name=NAME,
         version=VERSION,
         description=DESCRIPTION,
-        url='https://github.com/jingxinfu/dataCollection',
+          url='https://github.com/jingxinfu/TCGAdnloader',
         author='Jingxin Fu',
         author_email='jingxinfu.tj@gmail.com',
         packages=PACKAGE,
         package_data={NAME: package_files},
         install_requires=REQUIRES,
         license=open('LICENSE').read(),
-        scripts=['bin/collect'],
+        scripts=['bin/tcgaDnloader'],
         include_package_data=True,
         zip_safe=False)
 
