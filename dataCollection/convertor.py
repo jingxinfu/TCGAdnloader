@@ -33,7 +33,7 @@ def mapEm2Gene(df, anno_path=ANNO_PATH):
     df = df.groupby(level=0).mean()
     return df
     
-def pick(df, source='tumor'):
+def pick(df, source='tumor',transpose=False):
     source_map = {'tumor': '0[0-9]$',
             'normal': '1[0-9]$'}
 
@@ -41,8 +41,11 @@ def pick(df, source='tumor'):
         raise KeyError("""
         {0} is not a valid type of source, only accept following input: {1}
         """.format(source, ','.join(source_map.keys())))
-    
-    return df.loc[:, df.columns.str.contains(source_map[source])]
+
+    if transpose:
+        return df.loc[df.index.str.contains(source_map[source]),:]
+    else:
+        return df.loc[:, df.columns.str.contains(source_map[source])]
 
 def calTNzcore(df,pair_TN = True):
     ''' Ways to normalize tumor expression data on TCGA
@@ -84,7 +87,6 @@ def calTNzcore(df,pair_TN = True):
 
 def mergeSampleToPatient(df,transpose=False):
     '''
-    A inplace function.
     Changes samples level profile into patient level, but keep tumor and normal information.
     Data from the same sample but from different vials/portions/analytes/aliquotes is averaged.
 
@@ -103,11 +105,11 @@ def mergeSampleToPatient(df,transpose=False):
     '''
     if transpose is True:
         df.index = df.index.map(lambda x: '-'.join(x.split('-')[:4])[:-1])
-        df = df.groupby(level=0).mean().T
+        df = df.groupby(level=0).mean()
     else:
         df.columns = df.columns.map(lambda x: '-'.join(x.split('-')[:4])[:-1])
         df = df.T.groupby(level=0).mean().T
-
+    return df
 
 def tpmToFpkm(df,reverse=False):
     ''' Conversion between TPM and FPKM/RPKM

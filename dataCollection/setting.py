@@ -23,9 +23,7 @@ Biospecimen_INFO = {
         
     },
     "patient_pheno":{
-        # "sample": {
-            # "sample": ['sample_type	', 'bcr_sample_barcode'],
-        # },
+        # "sample": ['bcr_sample_barcode', 'sample_type'],
         "auxilary": [
                 'bcr_patient_barcode', 'hpv_status',
                 'mononucleotide_and_dinucleotide_marker_panel_analysis_status'
@@ -37,7 +35,6 @@ Biospecimen_INFO = {
 }
 
 Biospecimen_MAP ={
-    'bcr_sample_barcode' : 'patient',
     'bcr_patient_barcode': 'patient',
     'mononucleotide_and_dinucleotide_marker_panel_analysis_status':'MSI_Status'
 }
@@ -68,7 +65,7 @@ CLIN_MAP = {
 #     'SARC','STAD','TGCT','THYM','UCS','BLCA','CESC','COAD','DLBC','GBM','HNSC',
 #     'KIRC','LAML','LIHC','LUSC','OV','PCPG','READ','SKCM','THCA','UCEC','UVM',
 # ]
-CANCER_LIST = ['ACC']
+CANCER_LIST = ['BRCA']
 
 # RNASEQ_DIR = '../RNASeq'
 # CNV_DIR = '../CNV'

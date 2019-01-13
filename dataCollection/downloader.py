@@ -70,6 +70,8 @@ class GdcApi(object):
         read_to_merge=[]
         for k,v in CLIN_INFO.items():
             meta,_ = self.getTable(data_type=k)
+            # The reason why use the second raw as row name is that
+            # the name of follow_up info columns is consistent with different version
             meta.columns = meta.iloc[0,:]
             meta = meta.iloc[2:,]
             meta = meta[meta.columns.intersection(v)]
@@ -87,57 +89,51 @@ class GdcApi(object):
                   sub_folder='Surv',cancer=self.cancer)
 
     def biospecimen(self):
-
         for sub_folder,files in Biospecimen_INFO.items():
             read_to_merge = []
             for k, v in files.items():
                 meta, errors = self.getTable(data_type=k)
                 if errors == None:
-                    meta = meta[meta.columns.intersection(
-                        v)].drop(1, axis=0)
+                    meta = meta[meta.columns.intersection(v)]
                     non_info = pd.Index(v).difference(meta.columns)
                     for c in non_info:
-                        meta[c] = '[Not Available]'
+                        meta[c] = np.nan
 
-                    if k == 'sample':
-                        meta.rename(
-                            columns={'bcr_sample_barcode': 'patient'}, inplace=True)
-                        meta.set_index('patient', inplace=True)
-                        print(meta.index)
-                        meta.index = meta.index.map(lambda x: x[:-1])
-                        
-                        meta = pick(df=meta, source='tumor')
-
-                    else:
-                        meta.rename(columns=Biospecimen_MAP,inplace=True)
-                        meta.set_index('patient',inplace=True)
-                    
                     meta.replace('[Not Available]', np.nan, inplace=True)
                     meta.replace('[Not Applicable]', np.nan, inplace=True)
+                    meta.rename(columns=Biospecimen_MAP,inplace=True)
 
+                    ## header process
+                    if 'bcr_sample_barcode' in v:
+                        meta.rename(
+                            columns={'bcr_sample_barcode': 'patient'}, inplace=True)
+                        meta = meta.drop(0, axis=0).set_index('patient')
+                       
+                    elif 'hpv_status' in v:
+                        meta = meta.drop(0,axis=0).set_index('patient')
+                    else:
+                        meta = meta.drop([0,1],axis=0).set_index('patient')
+                 
+                    ## additional info
                     if k == 'slide':
                         meta = meta.apply(pd.to_numeric)
-                        mergeSampleToPatient(meta,transpose=True)
+                        meta = mergeSampleToPatient(meta,transpose=True)
 
-                    if k == 'sample' and self.cancer == 'BRCA':
+                    if k == "patient" and self.cancer == 'BRCA':
                         pam50 = pd.read_table(PAM50_PATH, index_col=0)[
                             'PAM50 mRNA'].to_frame()
                         meta = meta.merge(pam50, left_index=True,right_index=True,how='left')
 
                     read_to_merge.append(meta)
 
-            storeData(pd.concat(read_to_merge,axis=1,join='outer'),
+
+          
+
+
+            storeData(pd.concat(read_to_merge,axis=1),
                      parental_dir=self.parental_dir,
                      sub_folder=sub_folder,cancer=self.cancer)
 
-                # 
-
-        # if len(read_to_merge)>1:
-        #     basic_bios = pd.concat(read_to_merge, join='outer',axis=1)
-        # else:
-        #     basic_bios = read_to_merge[0]
-
-        # print(basic_bios.head())
 
 
 class Workflow(object):
@@ -287,10 +283,10 @@ class FireBrowseDnloader(Workflow):
 
         raw_count = df.loc[:, col_selector.iloc[0, :] =='raw_count']
         raw_count = round(raw_count)
-        mergeSampleToPatient(raw_count)
+        raw_count = mergeSampleToPatient(raw_count)
 
         transcipt_fraction = df.loc[:,col_selector.iloc[0, :] == 'scaled_estimate']
-        mergeSampleToPatient(transcipt_fraction)
+        raw_count = mergeSampleToPatient(transcipt_fraction)
 
         tpm = transcipt_fraction * 10e6
         normalize_factor = transcipt_fraction.sum(axis=0)
@@ -374,7 +370,7 @@ class FireBrowseDnloader(Workflow):
 
         rnaseq_norm = pd.read_table(
             '_'.join([store_dir_norm, self.cancer]), index_col=0, skiprows=[1])
-        mergeSampleToPatient(rnaseq_norm)
+        rnaseq_norm = mergeSampleToPatient(rnaseq_norm)
         storeData(df=rnaseq_norm, parental_dir=store_dir,
                   sub_folder='norm_count', cancer=self.cancer)
 
@@ -403,7 +399,7 @@ class FireBrowseDnloader(Workflow):
         cnv_gene = self._formatGistic(
             gistic_path='_'.join([store_dir, self.cancer]))
         for name, df in cnv_gene.items():
-            mergeSampleToPatient(df)
+            df = mergeSampleToPatient(df)
             storeData(df=df, parental_dir=store_dir,
                       sub_folder=name, cancer=self.cancer)
         subprocess.call(
@@ -448,7 +444,7 @@ class FireBrowseDnloader(Workflow):
 
         rppa = pd.read_table(
             '_'.join([store_dir,self.cancer]), index_col=0)
-        mergeSampleToPatient(rppa)
+        rppa = mergeSampleToPatient(rppa)
 
         storeData(df=rppa, parental_dir=store_dir,
                   sub_folder='', cancer=self.cancer)
@@ -534,7 +530,7 @@ class GdcDnloader(GdcApi, Workflow):
             if log != 'Success':
                 return name+':    '+log
             df = pd.read_table('_'.join([store_dir,self.cancer]),index_col=0)
-            mergeSampleToPatient(df)
+            df = mergeSampleToPatient(df)
             df = mapEm2Gene(df)
             
             if name == 'fpkm':
@@ -595,7 +591,7 @@ class GdcDnloader(GdcApi, Workflow):
         meta = meta['bcr_sample_barcode'].to_dict()
         df.columns = df.columns.map(meta)
 
-        mergeSampleToPatient(df)
+        df = mergeSampleToPatient(df)
         df = mapEm2Gene(df)
         storeData(df=df, parental_dir=store_parental,
                   sub_folder='focal', cancer=self.cancer)
