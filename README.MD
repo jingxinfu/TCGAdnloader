@@ -9,9 +9,10 @@ git clone git@github.com:jingxinfu/TCGAdnloader.git
 cd dataCollection
 pip install .
 ```
+
 ## Usage:
 ```
-usage: collect [-h] -o OUTPUT [-r REF [REF ...]] [-c CANCER [CANCER ...]]
+usage: tcgaDnloader [-h] -o OUTPUT [-r REF [REF ...]] [-c CANCER [CANCER ...]]
                [-t DATATYPE [DATATYPE ...]]
 
 Tools to download public genomic data
