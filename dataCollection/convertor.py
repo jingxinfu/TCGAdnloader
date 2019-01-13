@@ -34,6 +34,28 @@ def mapEm2Gene(df, anno_path=ANNO_PATH):
     return df
     
 def pick(df, source='tumor',transpose=False):
+    ''' Picking samples by where it dissect from. 
+    
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        A data frame with gene indentifier on rows and samples on columns.
+    source : str, optional
+        The region to pick (the default is 'tumor')
+    transpose : bool, optional
+        Whether the samples id is on the index (the default is False)
+    
+    Raises
+    ------
+    KeyError
+        if input a invalid data type
+    
+    Returns
+    -------
+    pandas.DataFrame
+        A data frame with gene indentifier on rows and picked samples on columns.
+    '''
+
     source_map = {'tumor': '0[0-9]$',
             'normal': '1[0-9]$'}
 
@@ -54,7 +76,8 @@ def calTNzcore(df,pair_TN = True):
     ----------
     df : pandas.DataFrame
         A data frame with gene indentifier on rows and samples on columns.
-        Value on the data frame ARE log scaled!
+        NOTICE: Value on the data frame ARE already been log scaled!
+
     pair_TN : bool, optional
         Tell whether normalize tumor expression profile by paired tumor samples (the default is True)
     
@@ -94,6 +117,8 @@ def mergeSampleToPatient(df,transpose=False):
     ----------
     df : pandas.DataFrame
         Data frame index by gene/entrez_id, column by TCGA barcode
+    transpose : bool (option)
+        Whether TCGA barcode is on index.(default is False)
 
     Inplace
     -------
@@ -142,6 +167,7 @@ def tpmToFpkm(df,reverse=False):
 
 
 def formatClin(df,data_type='survival'):
+
     df.rename(columns=CLIN_MAP,inplace=True)
     df.replace('[Not Available]', np.nan, inplace=True)
     df.replace('[Not Applicable]', np.nan, inplace=True)

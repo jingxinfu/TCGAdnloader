@@ -9,9 +9,28 @@ import requests,json,re,io
 from .setting import CLIN_INFO, Biospecimen_INFO, Biospecimen_MAP, PAM50_PATH
 
 class GdcApi(object):
+    ''' 
+    API for download files from GDC
+    '''
+
     __slot__ = ["files_endpt", "data_endpt", "cancer", "parental_dir"]
 
     def __init__(self, cancer, parental_dir,data_endpt="https://api.gdc.cancer.gov/data", files_endpt="https://api.gdc.cancer.gov/files", **kwargs):
+        ''' Intialize instance parameters
+        
+        Parameters
+        ----------
+        cancer : str
+            Cancer type
+        parental_dir : str
+            Path to store datas
+        data_endpt : str, optional
+            [Endpoint for files id searching] (the default is "https://api.gdc.cancer.gov/data")
+        files_endpt : str, optional
+            [Endpoint for files downloading] (the default is "https://api.gdc.cancer.gov/files")
+        
+        '''
+
         self.files_endpt = files_endpt
         self.data_endpt = data_endpt
         self.cancer = cancer
@@ -83,6 +102,22 @@ class GdcApi(object):
         return params
 
     def _fetchFileID(self, data_type,by_name=True):
+        ''' Get files id by upstream filter parameters
+        
+        Parameters
+        ----------
+        data_type : str
+            Data type to be download. eg. gistic
+        by_name : bool, optional
+            Whether getting files id by matching file names (the default is True).
+            If not, we will use project filtering options to get file id list.
+        
+        Returns
+        -------
+        list
+            A list contains file ids.
+        '''
+
 
         if by_name is True:
             version = 4
@@ -110,6 +145,11 @@ class GdcApi(object):
     def getTable(self, data_type, by_name=True, **kwargs):
         file_uuid_list, error = self._fetchFileID(
             data_type=data_type, by_name=by_name)
+        ''' 
+        Merging tables downloaded by a list of file ids
+
+        '''
+
         if error != None:
             return None, error
         ready_to_merge = []
@@ -125,6 +165,10 @@ class GdcApi(object):
         return pd.concat(ready_to_merge,axis=0),None
 
     def clin(self):
+        '''
+        Downloading clinical information
+        '''
+
         read_to_merge=[]
         for k,v in CLIN_INFO.items():
             meta,_ = self.getTable(data_type=k)
@@ -148,6 +192,9 @@ class GdcApi(object):
                   sub_folder='Surv',cancer=self.cancer)
 
     def biospecimen(self):
+        '''
+        Downloading  biopecimen information
+        '''
         for sub_folder,files in Biospecimen_INFO.items():
             read_to_merge = []
             for k, v in files.items():
@@ -214,7 +261,7 @@ class Workflow(object):
             
 
 class FireBrowseDnloader(Workflow):
-    # __slot__ = ['release_time']
+    __slot__ = ['release_time']
     def __init__(self, release_time="2016_01_28", base_url="http://gdac.broadinstitute.org/runs",**kwargs):
         super(FireBrowseDnloader, self).__init__(**kwargs)
         self.release_time = release_time
@@ -542,6 +589,26 @@ class GdcDnloader(GdcApi, Workflow):
                 }
 
     def _fget(self, data_type, store_dir):
+        '''Download level 3 data from Xenas
+        
+        Parameters
+        ----------
+        data_type : str
+            Data type to be downloaded
+        store_dir : str
+            Path to store the data
+        
+        Raises
+        ------
+        KeyError
+            If cannot fetching the files
+        
+        Returns
+        -------
+        str
+            Tell if the downloading is successful or not
+        '''
+
         data_type_dict = {
                 'fpkm': "htseq_fpkm",
                 'count':"htseq_counts",

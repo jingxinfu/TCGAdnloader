@@ -1,6 +1,9 @@
 ## Introduction
 
+This package is for downloading TCGA project data on a managable data structure. 
+
 ## Install:
+
 ```
 git clone git@github.com:jingxinfu/dataCollection.git
 cd dataCollection
