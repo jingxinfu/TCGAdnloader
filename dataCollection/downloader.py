@@ -17,7 +17,44 @@ class GdcApi(object):
         self.cancer = cancer
         self.parental_dir = parental_dir
 
-    def _contructFilter(self, data_type,version='4'):
+    def _projFilter(self, data_type):
+        dtype_dict = {
+            "cnv_segment_somatic": "Masked Copy Number Segment",
+            "cnv_segment_all": "Copy Number Segment",
+        }
+        filters = {
+            "op": "and",
+            "content":[
+                {
+                    "op": "in",
+                    "content": {
+                        "field": "files.data_type",
+                        "value": [
+                            dtype_dict[data_type]
+                        ]
+                    }
+                },
+                {
+                    "op": "in",
+                    "content": {
+                        "field": "cases.project.project_id",
+                        "value": [
+                            "TCGA-"+self.cancer.upper()
+                        ]
+                    }
+                },
+            ]
+        }
+
+        params = {
+            "filters": json.dumps(filters),
+            "format": "JSON",
+            "size": "3000"
+        }
+
+        return params
+
+    def _nameFilter(self, data_type,version='4'):
         dtype_dict = {
             'gistic': '{}.focal_score_by_genes.txt'.format(self.cancer.upper()),
             'survival': "nationwidechildrens.org_clinical_follow_up_v{0}.0_{1}.txt".format(version,self.cancer.lower()),
@@ -36,35 +73,56 @@ class GdcApi(object):
                 ]
             }
         }
-        self._params = {
+
+        params = {
             "filters": json.dumps(filters),
             "format": "JSON",
             "size": "1"
         }
 
-    def _fetchFileID(self):
-        self.file_uuid_list = []
-        response = requests.get(self.files_endpt, params=self._params)
-        for file_entry in json.loads(response.content.decode("utf-8"))["data"]["hits"]:
-            self.file_uuid_list.append(file_entry["file_id"])
+        return params
 
-    def getTable(self, data_type, **kwargs):
-        version = 4
-        while True:
-            self._contructFilter(data_type,str(version))
-            self._fetchFileID()
-            if len(self.file_uuid_list) > 0:
-                break
-            if version < 0:
-                return None,'Not Found'
-            version -= 1
+    def _fetchFileID(self, data_type,by_name=True):
+
+        if by_name is True:
+            version = 4
+            while True:
+                file_uuid_list = []
+                params = self._nameFilter(data_type, str(version))
+                response = requests.get(self.files_endpt, params=params)
+                for file_entry in json.loads(response.content.decode("utf-8"))["data"]["hits"]:
+                    file_uuid_list.append(file_entry["file_id"])
+
+                if len(file_uuid_list) > 0:
+                    break
+                if version < 0:
+                    return None,'Not Found'
+                version -= 1
+        else:
+            file_uuid_list = []
+            params = self._projFilter(data_type)
+            response = requests.get(self.files_endpt, params=params)
+            for file_entry in json.loads(response.content.decode("utf-8"))["data"]["hits"]:
+                file_uuid_list.append(file_entry["file_id"])
         
-        params = {"ids": self.file_uuid_list}
-        response = requests.post(self.data_endpt, data=json.dumps(
-            params), headers={"Content-Type": "application/json"})
-        df = pd.read_table(io.StringIO(
-            response.content.decode("utf-8")), **kwargs)
-        return df,None
+        return file_uuid_list,None
+       
+    def getTable(self, data_type, by_name=True, **kwargs):
+        file_uuid_list, error = self._fetchFileID(
+            data_type=data_type, by_name=by_name)
+        if error != None:
+            return None, error
+        ready_to_merge = []
+
+        for ids in file_uuid_list:
+            params = {"ids": [ids]}
+            response = requests.post(self.data_endpt, data=json.dumps(
+                params), headers={"Content-Type": "application/json"})
+            df = pd.read_table(io.StringIO(
+                response.content.decode("utf-8")), **kwargs)
+            ready_to_merge.append(df)
+        
+        return pd.concat(ready_to_merge,axis=0),None
 
     def clin(self):
         read_to_merge=[]
@@ -84,7 +142,8 @@ class GdcApi(object):
             read_to_merge.append(meta)
 
         basic_clin = pd.concat(read_to_merge,join='outer',axis=1,sort=True)
-        
+        basic_clin.index.name = 'patient'
+
         storeData(basic_clin,parental_dir=self.parental_dir,
                   sub_folder='Surv',cancer=self.cancer)
 
@@ -120,8 +179,8 @@ class GdcApi(object):
                         meta = mergeSampleToPatient(meta,transpose=True)
 
                     if k == "patient" and self.cancer == 'BRCA':
-                        pam50 = pd.read_table(PAM50_PATH, index_col=0)[
-                            'PAM50 mRNA'].to_frame()
+                        pam50 = pd.read_table(PAM50_PATH, index_col=0).rename(columns={
+                            "PAM50 mRNA":'Subtype'})['Subtype'].to_frame()
                         meta = meta.merge(pam50, left_index=True,right_index=True,how='left')
 
                     read_to_merge.append(meta)
@@ -129,6 +188,11 @@ class GdcApi(object):
 
           
 
+            result = pd.concat(read_to_merge,axis=1)
+            if sub_folder == "sample_pheno":
+                result.index.name = 'sample'
+            else:
+                result.index.name = 'patient'
 
             storeData(pd.concat(read_to_merge,axis=1),
                      parental_dir=self.parental_dir,
@@ -578,12 +642,13 @@ class GdcDnloader(GdcApi, Workflow):
 
     def cnv(self):
         store_parental = '/'.join([self.parental_dir, 'CNV'])
+
         # focal data
         df,_ = self.getTable(data_type='gistic')
         df = df.set_index('Gene Symbol').drop(['Gene ID', 'Cytoband'],axis=1)
 
         ## map uuid to barcode
-        meta, errors = self.getTable(data_type='aliquot')
+        meta, _ = self.getTable(data_type='aliquot')
         meta = meta.dropna(
             axis=0).set_index('bcr_aliquot_uuid')
 
@@ -594,8 +659,21 @@ class GdcDnloader(GdcApi, Workflow):
         df = mergeSampleToPatient(df)
         df = mapEm2Gene(df)
         storeData(df=df, parental_dir=store_parental,
-                  sub_folder='focal', cancer=self.cancer)
-                  
+                  sub_folder='somatic/focal', cancer=self.cancer)
+
+        # Segment data
+        ## somatic 
+        df, _ = self.getTable(data_type='cnv_segment_somatic', by_name=False)
+        df['GDC_Aliquot'] = df['GDC_Aliquot'].map(meta)
+        storeData(df=df, parental_dir=store_parental,
+                  sub_folder='all/segment', cancer=self.cancer)
+
+        # all 
+        df, _ = self.getTable(data_type='cnv_segment_all', by_name=False)
+        df['GDC_Aliquot'] = df['GDC_Aliquot'].map(meta)
+        storeData(df=df, parental_dir=store_parental,
+                  sub_folder='all/segment', cancer=self.cancer)
+
         return 'Success'
        
 
