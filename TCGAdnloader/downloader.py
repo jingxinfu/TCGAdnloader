@@ -123,8 +123,15 @@ class GdcApi(object):
             version = 4.4
             while True:
                 file_uuid_list = []
+                
+                if (version - int(version)) < 1e3:
+                    version = int(version)
+                else:
+                    version = round(version, 1)
+
                 params = self._nameFilter(data_type, str(version))
                 response = requests.get(self.files_endpt, params=params)
+
                 for file_entry in json.loads(response.content.decode("utf-8"))["data"]["hits"]:
                     file_uuid_list.append(file_entry["file_id"])
 
