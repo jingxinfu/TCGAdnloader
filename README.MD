@@ -35,7 +35,7 @@ optional arguments:
 ```
 (output directory)
 ├── hg19
-│   ├── CNV  
+│   ├── CNV
 │   │   ├── all
 │   │   │   └── segment
 │   │   └── somatic
@@ -46,14 +46,14 @@ optional arguments:
 │   │       └── segment
 │   ├── RNASeq
 │   │   ├── count
+│   │   │   └── origin
 │   │   ├── fpkm
 │   │   │   ├── origin
-│   │   │   ├── zscore_paired
 │   │   │   └── zscore_tumor
 │   │   ├── norm_count
+│   │   │   └── origin
 │   │   └── tpm
 │   │       ├── origin
-│   │       ├── zscore_paired
 │   │       └── zscore_tumor
 │   └── RPPA
 └── hg38
@@ -61,24 +61,27 @@ optional arguments:
     │   ├── all
     │   │   └── segment
     │   └── somatic
-    │       └── focal
+    │       ├── gene
+    │       │   └── focal
+    │       └── segment
     ├── RNASeq
     │   ├── count
     │   │   └── origin
     │   ├── fpkm
     │   │   ├── origin
-    │   │   ├── zscore_paired
     │   │   └── zscore_tumor
     │   ├── fpkm_uq
     │   │   └── origin
     │   └── tpm
     │       ├── origin
-    │       ├── zscore_paired
     │       └── zscore_tumor
-    ├── SNV_muse
-    ├── SNV_mutect2
-    ├── SNV_SomaticSnipe
-    └── SNV_VarScan2
+    ├── sample_pheno
+    ├── SNV
+    │   ├── muse
+    │   ├── mutect2
+    │   ├── SomaticSnipe
+    │   └── VarScan2
+    └── Surv
 ```
 ### Detial
 - CNV

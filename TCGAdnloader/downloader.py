@@ -667,9 +667,7 @@ class GdcDnloader(GdcApi, Workflow):
                 return name+':    '+log
 
             df = pd.read_table('/'.join([store_dir,self.cancer]),index_col=0)
-            print(df.head())
             df = np.exp2(df) - 1  # since all matrix download from xenas have been log transformed
-            print(df.head())
             df = mergeSampleToPatient(df)
             df = mapEm2Gene(df)
             
