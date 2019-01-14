@@ -120,7 +120,7 @@ class GdcApi(object):
 
 
         if by_name is True:
-            version = 4
+            version = 4.4
             while True:
                 file_uuid_list = []
                 params = self._nameFilter(data_type, str(version))
@@ -132,7 +132,7 @@ class GdcApi(object):
                     break
                 if version < 0:
                     return None,'Not Found'
-                version -= 1
+                version -= .1
         else:
             file_uuid_list = []
             params = self._projFilter(data_type)
