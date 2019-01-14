@@ -372,9 +372,7 @@ class FireBrowseDnloader(Workflow):
         return log
 
     def _splitCountTPM(self, raw_rnaseq_path):
-        # TODO FIX Problems for TPM and RPKM. Compare it to Shenlin's data
-        # The difference between hg19 and hg38 is huge
-        
+
         ''' Split one data frame with both count and scaled_estiamte into two data frames and
         merge the sample level data frame into pateint level data frame, but keep separating tumor and normal samples.
         Then, based on the scaled_estimate column, calculate TPM and RPKM information.

@@ -1,7 +1,8 @@
 ## Introduction
 
 This package is for downloading TCGA project data on a managable data structure. 
-
+### Notice:
+The scale of TPM/FPKM range between hg19 and hg38 has hug difference.
 ## Install:
 
 ```
