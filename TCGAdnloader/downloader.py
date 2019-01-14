@@ -372,6 +372,9 @@ class FireBrowseDnloader(Workflow):
         return log
 
     def _splitCountTPM(self, raw_rnaseq_path):
+        # TODO FIX Problems for TPM and RPKM. Compare it to Shenlin's data
+        # The difference between hg19 and hg38 is huge
+        
         ''' Split one data frame with both count and scaled_estiamte into two data frames and
         merge the sample level data frame into pateint level data frame, but keep separating tumor and normal samples.
         Then, based on the scaled_estimate column, calculate TPM and RPKM information.
@@ -393,15 +396,17 @@ class FireBrowseDnloader(Workflow):
         col_selector = pd.read_table(raw_rnaseq_path, index_col=0, nrows=2)
 
         raw_count = df.loc[:, col_selector.iloc[0, :] =='raw_count']
-        raw_count = round(raw_count)
         raw_count = mergeSampleToPatient(raw_count)
+        raw_count = round(raw_count)
 
+        ## Get fpkm and tpm information from transcript fractions
         transcipt_fraction = df.loc[:,col_selector.iloc[0, :] == 'scaled_estimate']
-        raw_count = mergeSampleToPatient(transcipt_fraction)
-
         tpm = transcipt_fraction * 10e6
         normalize_factor = transcipt_fraction.sum(axis=0)
         fpkm = transcipt_fraction * normalize_factor * 10e9
+
+        tpm = mergeSampleToPatient(tpm)
+        fpkm = mergeSampleToPatient(fpkm)
 
         return dict(count=raw_count,tpm=tpm,fpkm=fpkm)
 
@@ -463,13 +468,13 @@ class FireBrowseDnloader(Workflow):
                 except ValueError:
                     pass
 
-                name += '/origin'
-
+            name += '/origin'
             storeData(df = df, parental_dir = store_dir,
                     sub_folder=name, cancer=self.cancer)
 
         subprocess.call(
             'rm -rf {}'.format('_'.join([store_dir_raw, self.cancer])), shell=True)
+
         ########################## Raw count and Scale Estimate ##########################
         # 1. Fetch normalized count from FireBrowse
         # 2. remove the second row, which only  indicate the normalized count
@@ -484,8 +489,9 @@ class FireBrowseDnloader(Workflow):
         rnaseq_norm = pd.read_table(
             '_'.join([store_dir_norm, self.cancer]), index_col=0, skiprows=[1])
         rnaseq_norm = mergeSampleToPatient(rnaseq_norm)
+        rnaseq_norm = rmEntrez(rnaseq_norm)
         storeData(df=rnaseq_norm, parental_dir=store_dir,
-                  sub_folder='norm_count', cancer=self.cancer)
+                  sub_folder='norm_count/origin', cancer=self.cancer)
 
         subprocess.call(
             'rm -rf {}'.format('_'.join([store_dir_norm, self.cancer])), shell=True)
@@ -557,6 +563,8 @@ class FireBrowseDnloader(Workflow):
 
         rppa = pd.read_table(
             '_'.join([store_dir,self.cancer]), index_col=0)
+
+        rppa = rmEntrez(rppa)
         rppa = mergeSampleToPatient(rppa)
 
         storeData(df=rppa, parental_dir=store_dir,
@@ -634,14 +642,13 @@ class GdcDnloader(GdcApi, Workflow):
             )
         cmd = """
         set -x
-        wget -v -O {store_dir}_{cancer}_{data_type}_tmp.gz {url}
-        gunzip {store_dir}_{cancer}_{data_type}_tmp.gz
-        mv {store_dir}_{cancer}_{data_type}_tmp {store_dir}_{cancer}
+        [[ -d {store_dir} ]] || mkdir -p {store_dir}
+        wget -v -O {store_dir}/{cancer}.gz {url}
+        gunzip {store_dir}/{cancer}.gz
         """.format(**dict(
                 store_dir=store_dir,
                 cancer=self.cancer,
                 url=url,
-                data_type=data_type,
             )
         )
         try:
@@ -654,17 +661,17 @@ class GdcDnloader(GdcApi, Workflow):
 
     def rnaseq(self):
         store_parental = '/'.join([self.parental_dir, 'RNASeq'])
-        if not os.path.isdir(store_parental):
-            os.makedirs(store_parental)
         for name in self.type_available['RNASeq']:
-            store_dir = '_'.join([store_parental, name])
+            store_dir = '/'.join([store_parental, name])
             log = self._fget(data_type=name, store_dir=store_dir)
 
             if log != 'Success':
                 return name+':    '+log
 
-            df = pd.read_table('_'.join([store_dir,self.cancer]),index_col=0)
+            df = pd.read_table('/'.join([store_dir,self.cancer]),index_col=0)
+            print(df.head())
             df = np.exp2(df) - 1  # since all matrix download from xenas have been log transformed
+            print(df.head())
             df = mergeSampleToPatient(df)
             df = mapEm2Gene(df)
             
@@ -692,24 +699,18 @@ class GdcDnloader(GdcApi, Workflow):
                           sub_folder=name+'/origin', cancer=self.cancer)
 
             subprocess.call(
-                'rm -rf {}'.format('_'.join([store_dir, self.cancer])), shell=True)
+                'rm -rf {}'.format('/'.join([store_dir, self.cancer])), shell=True)
                 
     def snv(self):
         store_parental = '/'.join([self.parental_dir, 'SNV'])
         for name in self.type_available['SNV']:
-            store_dir = '_'.join([store_parental, name])
+            store_dir = '/'.join([store_parental, name])
+
             log = self._fget(data_type=name, store_dir=store_dir)
 
             if log != 'Success':
                 return name+':    '+log
-            
-            if not os.path.exists(store_dir):
-                os.makedirs(store_dir)
-            subprocess.call(
-                'mv {0} {1}'.format('_'.join([store_dir, self.cancer]),
-                                    '/'.join([store_dir, self.cancer])
-                                    ),
-                 shell=True)
+
 
     def cnv(self):
         store_parental = '/'.join([self.parental_dir, 'CNV'])
@@ -730,7 +731,7 @@ class GdcDnloader(GdcApi, Workflow):
         df = mergeSampleToPatient(df)
         df = mapEm2Gene(df)
         storeData(df=df, parental_dir=store_parental,
-                  sub_folder='somatic/focal', cancer=self.cancer)
+                  sub_folder='somatic/gene/focal', cancer=self.cancer)
 
         # Segment data
         ## somatic 
