@@ -239,10 +239,21 @@ class GdcApi(object):
           
 
             result = pd.concat(read_to_merge,axis=1)
+
+            ## Store tumor and normal info separatelly
             if sub_folder == "sample_pheno":
-                result.index.name = 'sample'
-            else:
-                result.index.name = 'patient'
+                for s in ['tumor','normal']:
+                    sub_result = pick(result, source=s, transpose=True)
+                    sub_result.index = sub_result.index.map(
+                        lambda x: '-'.join(x.split('-')[:3]))
+                        
+                    storeData(sub_result,
+                              parental_dir=self.parental_dir,
+                              sub_folder='/'.join([sub_folder,s]), cancer=self.cancer)
+                   
+                sub_folder += '/origin'
+
+            result.index.name = 'patient'
 
             storeData(pd.concat(read_to_merge,axis=1),
                      parental_dir=self.parental_dir,
