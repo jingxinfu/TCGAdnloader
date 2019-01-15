@@ -31,9 +31,10 @@ if __name__ == "__main__":
                                         workflow=args.datatype)
             dl.run()
 
-        if args.meta == True:
+        if args.meta == True and cancer != 'LAML':
             dl = downloader.GdcApi(parental_dir=args.output,
                                         cancer=cancer)
+           
             dl.clin()
             dl.biospecimen()
    

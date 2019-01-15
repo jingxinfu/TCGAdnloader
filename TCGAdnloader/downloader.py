@@ -6,7 +6,7 @@ import numpy as np
 from .convertor import mergeSampleToPatient, calTNzcore, rmEntrez, tpmToFpkm, mapEm2Gene, formatClin, pick
 from .outformat import storeData
 import requests,json,re,io
-from .setting import CLIN_INFO, Biospecimen_INFO, Biospecimen_MAP, PAM50_PATH
+from .setting import CLIN_INFO, Biospecimen_INFO, Biospecimen_MAP, PAM50_PATH, CLIN_VERSION
 
 class GdcApi(object):
     ''' 
@@ -73,10 +73,10 @@ class GdcApi(object):
 
         return params
 
-    def _nameFilter(self, data_type,version='4'):
+    def _nameFilter(self, data_type):
         dtype_dict = {
             'gistic': '{}.focal_score_by_genes.txt'.format(self.cancer.upper()),
-            'survival': "nationwidechildrens.org_clinical_follow_up_v{0}.0_{1}.txt".format(version,self.cancer.lower()),
+            'survival': "nationwidechildrens.org_clinical_follow_up_v{0}_{1}.txt".format(CLIN_VERSION[self.cancer], self.cancer.lower()),
             'patient': "nationwidechildrens.org_clinical_patient_{}.txt".format(self.cancer.lower()),
             'aliquot': "nationwidechildrens.org_biospecimen_aliquot_{}.txt".format(self.cancer.lower()),
             'slide': "nationwidechildrens.org_biospecimen_slide_{}.txt".format(self.cancer.lower()),
@@ -101,7 +101,7 @@ class GdcApi(object):
 
         return params
 
-    def _fetchFileID(self, data_type,by_name=True):
+    def _fetchFileID(self, data_type, by_name=True):
         ''' Get files id by upstream filter parameters
         
         Parameters
@@ -118,44 +118,35 @@ class GdcApi(object):
             A list contains file ids.
         '''
 
-
         if by_name is True:
-            version = 4.4
-            while True:
-                file_uuid_list = []
-                
-                if (version - int(version)) < 1e3:
-                    version = int(version)
-                else:
-                    version = round(version, 1)
+            
+            file_uuid_list = []
+            params = self._nameFilter(data_type)
+            response = requests.get(self.files_endpt, params=params)
 
-                params = self._nameFilter(data_type, str(version))
-                response = requests.get(self.files_endpt, params=params)
+            for file_entry in json.loads(response.content.decode("utf-8"))["data"]["hits"]:
+                file_uuid_list.append(file_entry["file_id"])
 
-                for file_entry in json.loads(response.content.decode("utf-8"))["data"]["hits"]:
-                    file_uuid_list.append(file_entry["file_id"])
-
-                if len(file_uuid_list) > 0:
-                    break
-                if version < 0:
-                    return None,'Not Found'
-                version -= .1
         else:
             file_uuid_list = []
             params = self._projFilter(data_type)
             response = requests.get(self.files_endpt, params=params)
             for file_entry in json.loads(response.content.decode("utf-8"))["data"]["hits"]:
                 file_uuid_list.append(file_entry["file_id"])
-        
-        return file_uuid_list,None
+
+        if len(file_uuid_list) == 0:
+            return None,'Not found'
+        else:
+            return file_uuid_list,None
        
     def getTable(self, data_type, by_name=True, **kwargs):
-        file_uuid_list, error = self._fetchFileID(
-            data_type=data_type, by_name=by_name)
+       
         ''' 
         Merging tables downloaded by a list of file ids
 
         '''
+        file_uuid_list, error = self._fetchFileID(
+            data_type=data_type, by_name=by_name)
 
         if error != None:
             return None, error

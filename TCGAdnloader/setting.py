@@ -67,5 +67,14 @@ CANCER_LIST = [
     'KIRC','LAML','LIHC','LUSC','OV','PCPG','READ','SKCM','THCA','UCEC','UVM',
 ]
 
+CLIN_VERSION = {
+    'ACC': '4.0', 'BRCA': '4.0', 'CHOL': '4.0', 'ESCA': '4.0', 'KICH': '4.4',
+    'KIRP': '1.0', 'LGG': '1.0', 'LUAD': '1.0', 'MESO': '4.0', 'PAAD': '4.4',
+    'PRAD': '1.0', 'SARC': '4.0', 'STAD': '1.0', 'TGCT': '4.0', 'THYM': '4.0',
+    'UCS': '4.0', 'BLCA': '4.0', 'CESC': '4.0', 'COAD': '1.0', 'DLBC': '4.4',
+    'GBM': '1.0', 'HNSC': '4.8', 'KIRC': '1.0', 'LAML': None, 'LIHC': '4.0',
+    'LUSC': '1.0', 'OV': '1.0', 'PCPG': '4.0', 'READ': '1.0', 'SKCM': '2.0',
+    'THCA': '4.0', 'UCEC': '4.0', 'UVM': '4.0',
+}
 
 
