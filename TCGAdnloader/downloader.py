@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import subprocess, os
+import subprocess, os,time
 import pandas as pd
 import numpy as np
 from .convertor import mergeSampleToPatient, calTNzcore, rmEntrez, tpmToFpkm, mapEm2Gene, formatClin, pick
@@ -145,8 +145,13 @@ class GdcApi(object):
         Merging tables downloaded by a list of file ids
 
         '''
-        file_uuid_list, error = self._fetchFileID(
-            data_type=data_type, by_name=by_name)
+        try:
+            file_uuid_list, error = self._fetchFileID(
+                data_type=data_type, by_name=by_name)
+        except requests.exceptions.SSLError:
+            time.sleep(20)
+            file_uuid_list, error = self._fetchFileID(
+                data_type=data_type, by_name=by_name)
 
         if error != None:
             return None, error
