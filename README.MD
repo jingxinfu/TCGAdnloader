@@ -1,6 +1,6 @@
 ## Introduction
 
-This package is for downloading TCGA project data on a managable data structure. 
+This package is for downloading TCGA project data on a managable data structure (see following output structure). Both of hg19 and hg38 version are provided. Please feel free to open up issue if you have any questions.
 ### Notice:
 The scale of TPM/FPKM range between hg19 and hg38 has hug difference.
 ## Install:
@@ -83,20 +83,30 @@ optional arguments:
     │   └── VarScan2
     └── Surv
 ```
-### Detial
+### Note:
 - CNV
+
   - broad_focal : Region reaches significance due to either broad or focal event
 - RNA-Seq
-  - origin:
+  - origin: Files directly downloaded by API
+
   - zscore_paired : 
-    - log2(x+1)
-    - minus the average across normal samples
+    1. log2(x+1)
+
+    2. minus the average across normal samples
+
   - zscore_tumor : 
-    - pick up tumor samples
-    - log2(x+1)
-    - minus the average across samples
+
+    1. pick up tumor samples
+
+    2. log2(x+1)
+
+    3. minus the average across samples
+
   - fpkm_uq :
+
     - A modified version of the FPKM formula in which the 75th percentile read count is used as the denominator in place of the total number of protein-coding reads
-  
+
 - RPPA
+
   - Only available for hg19
