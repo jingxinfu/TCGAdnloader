@@ -363,7 +363,7 @@ class FireBrowseDnloader(Workflow):
         cmd ="""
         set -x
         [[ -d {store_dir}_{cancer}_{data_type}_tmp ]] || mkdir -p {store_dir}_{cancer}_{data_type}_tmp
-        wget -v -O {store_dir}_{cancer}_{data_type}.gz {url}
+        wget -q -O {store_dir}_{cancer}_{data_type}.gz {url}
         tar -xvvf {store_dir}_{cancer}_{data_type}.gz -C {store_dir}_{cancer}_{data_type}_tmp --strip-components=1
         rm {store_dir}_{cancer}_{data_type}.gz
         if [ $(ls {store_dir}_{cancer}_{data_type}_tmp/*{keep_suffix}| wc -l) -gt 1 ];then
@@ -427,13 +427,28 @@ class FireBrowseDnloader(Workflow):
 
     
     def _formatGistic(self, gistic_path):
-        result = {
+        ''' Formating GISTIC results and sepratate files into segment and gene level
+        
+        Parameters
+        ----------
+        gistic_path : str
+            Path to the folder of gistic output
+        
+        Returns
+        -------
+        dict
+            Dictionary with files output name as key and pandas.DataFrame as value 
+        '''
+
+        f_dict = {
             "broad_focal": '{}/all_data_by_genes.txt',
             "focal": '{}/focal_data_by_genes.txt',
             "threds": '{}/all_thresholded.by_genes.txt'
         }
-        for k,v in result.items():
-            result[k] = pd.read_table(v.format(gistic_path),index_col=0).drop(['Locus ID', 'Cytoband'],axis=1)
+        result = {}
+        for k, v in f_dict.items():
+            if os.path.isfile(v.format(gistic_path)):
+                result[k] = pd.read_table(v.format(gistic_path),index_col=0).drop(['Locus ID', 'Cytoband'],axis=1)
         
         return result
 
@@ -658,7 +673,7 @@ class GdcDnloader(GdcApi, Workflow):
         cmd = """
         set -x
         [[ -d {store_dir} ]] || mkdir -p {store_dir}
-        wget -v -O {store_dir}/{cancer}.gz {url}
+        wget -q -O {store_dir}/{cancer}.gz {url}
         gunzip {store_dir}/{cancer}.gz
         """.format(**dict(
                 store_dir=store_dir,
@@ -727,37 +742,42 @@ class GdcDnloader(GdcApi, Workflow):
 
     def cnv(self):
         store_parental = '/'.join([self.parental_dir, 'CNV'])
-
-        # focal data
-        df,_ = self.getTable(data_type='gistic')
-        df = df.set_index('Gene Symbol').drop(['Gene ID', 'Cytoband'],axis=1)
-
+        
+        # meta data
         ## map uuid to barcode
-        meta, _ = self.getTable(data_type='aliquot')
+        meta, errors = self.getTable(data_type='aliquot')
+        if errors != None:
+            return errors
+
         meta = meta.dropna(
             axis=0).set_index('bcr_aliquot_uuid')
-
-        meta.index =  meta.index.map(lambda x:x.lower())
+        meta.index = meta.index.map(lambda x: x.lower())
         meta = meta['bcr_sample_barcode'].to_dict()
-        df.columns = df.columns.map(meta)
 
-        df = mergeSampleToPatient(df)
-        df = mapEm2Gene(df)
-        storeData(df=df, parental_dir=store_parental,
-                  sub_folder='somatic/gene/focal', cancer=self.cancer)
+        # focal data
+        df,errors = self.getTable(data_type='gistic')
+        if errors == None:
+            df = df.set_index('Gene Symbol').drop(['Gene ID', 'Cytoband'],axis=1)
+            df.columns = df.columns.map(meta)
+            df = mergeSampleToPatient(df)
+            df = mapEm2Gene(df)
+            storeData(df=df, parental_dir=store_parental,
+                    sub_folder='somatic/gene/focal', cancer=self.cancer)
 
         # Segment data
         ## somatic 
-        df, _ = self.getTable(data_type='cnv_segment_somatic', by_name=False)
-        df['GDC_Aliquot'] = df['GDC_Aliquot'].map(meta)
-        storeData(df=df, parental_dir=store_parental,
-                  sub_folder='somatic/segment', cancer=self.cancer,index=False)
+        df, errors = self.getTable(data_type='cnv_segment_somatic', by_name=False)
+        if errors == None:
+            df['GDC_Aliquot'] = df['GDC_Aliquot'].map(meta)
+            storeData(df=df, parental_dir=store_parental,
+                    sub_folder='somatic/segment', cancer=self.cancer,index=False)
 
         # all 
-        df, _ = self.getTable(data_type='cnv_segment_all', by_name=False)
-        df['GDC_Aliquot'] = df['GDC_Aliquot'].map(meta)
-        storeData(df=df, parental_dir=store_parental,
-                  sub_folder='all/segment', cancer=self.cancer, index=False)
+        df, errors = self.getTable(data_type='cnv_segment_all', by_name=False)
+        if errors == None:
+            df['GDC_Aliquot'] = df['GDC_Aliquot'].map(meta)
+            storeData(df=df, parental_dir=store_parental,
+                    sub_folder='all/segment', cancer=self.cancer, index=False)
 
         return 'Success'
        
