@@ -43,7 +43,8 @@ Biospecimen_MAP ={
 CLIN_INFO = {
     "patient": [
         'bcr_patient_barcode', 'gender',
-        'pathologic_stage',
+        'pathologic_stage', 'vital_status',
+        'days_to_death', 'days_to_last_followup',
         'age_at_initial_pathologic_diagnosis'
     ],
     "survival": [

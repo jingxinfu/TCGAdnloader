@@ -2,7 +2,7 @@
 
 import pandas as pd
 import numpy as np
-import os
+import os,re
 from .setting import ANNO_PATH, CLIN_MAP
 
 def rmEntrez(df):
@@ -171,35 +171,30 @@ def formatClin(df,data_type='survival'):
     df.rename(columns=CLIN_MAP,inplace=True)
     df.replace('[Not Available]', np.nan, inplace=True)
     df.replace('[Not Applicable]', np.nan, inplace=True)
+    df.replace('[Completed]', np.nan, inplace=True)
     df.replace('[Discrepancy]', np.nan, inplace=True)
-
-    if data_type == 'survival':
         
-        df['OS_Event'] = df['OS_Event'].map({'Dead': 1, 'Alive': 0})
-        df['OS'] = df[['days_to_death', 'days_to_last_followup', ]].apply(
-            pd.to_numeric).max(axis=1)
-        df = df.groupby('patient').max()
-        df.index.name = 'patient'
-        return df
+    df['OS_Event'] = df['OS_Event'].map({'Dead': 1, 'Alive': 0})
+    df['OS'] = df[['days_to_death', 'days_to_last_followup', ]].apply(
+        pd.to_numeric).max(axis=1)
+    
+    df['age'] = pd.to_numeric(df['age'])
+    df['gender'] = pd.to_numeric(df['gender'].map({'FEMALE': 1, "MALE": 2}))
+    df['stage'] = df['stage'].map(lambda x: re.sub(
+        '[A-F]$', '', x) if isinstance(x, str) else np.nan)
+    df['stage'] =df['stage'].map(
+                            {
+                                'Stage I': 1,
+                                'Stage II': 2,
+                                'Stage III': 3,
+                                'Stage IV':4,
+                                'Stage V': 5,
+                                'Stage VI': 6,
+                                'Stage VII': 7,
+                                'Stage VIII': 8,
+                                'Stage IX': 9,
+                                'Stage X': 10,
+                            }
+                            )
 
-    if data_type == 'patient':
-        df['age'] = pd.to_numeric(df['age'])
-        df['gender'] = pd.to_numeric(df['gender'].map({'FEMALE': 1, "MALE": 2}))
-        df['stage'] =df['stage'].map(
-                                {
-                                    'Stage I': 1,
-                                    'Stage II': 2,
-                                    'Stage III': 3,
-                                    'Stage IV':4,
-                                    'Stage V': 5,
-                                    'Stage VI': 6,
-                                    'Stage VII': 7,
-                                    'Stage VIII': 8,
-                                    'Stage IX': 9,
-                                    'Stage X': 10,
-                                }
-                             )
-
-        return df.set_index('patient')
-
-    return df
+    return df.groupby('patient').max()

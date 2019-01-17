@@ -149,7 +149,7 @@ class GdcApi(object):
             file_uuid_list, error = self._fetchFileID(
                 data_type=data_type, by_name=by_name)
         except requests.exceptions.SSLError:
-            time.sleep(20)
+            time.sleep(10)
             file_uuid_list, error = self._fetchFileID(
                 data_type=data_type, by_name=by_name)
 
@@ -159,8 +159,14 @@ class GdcApi(object):
 
         for ids in file_uuid_list:
             params = {"ids": [ids]}
-            response = requests.post(self.data_endpt, data=json.dumps(
-                params), headers={"Content-Type": "application/json"})
+            try:
+                response = requests.post(self.data_endpt, data=json.dumps(
+                    params), headers={"Content-Type": "application/json"})
+            except requests.exceptions.SSLError:
+                time.sleep(10)
+                response = requests.post(self.data_endpt, data=json.dumps(
+                    params), headers={"Content-Type": "application/json"})
+
             df = pd.read_table(io.StringIO(
                 response.content.decode("utf-8")), **kwargs)
             ready_to_merge.append(df)
@@ -184,11 +190,10 @@ class GdcApi(object):
             
             for c in non_info:
                 meta[c] = '[Not Applicable]'
-
-            meta = formatClin(meta, data_type=k)
             read_to_merge.append(meta)
 
-        basic_clin = pd.concat(read_to_merge,join='outer',axis=1,sort=True)
+        basic_clin = pd.concat(read_to_merge,join='outer',axis=0,sort=True)
+        basic_clin = formatClin(basic_clin)
         basic_clin.index.name = 'patient'
 
         storeData(basic_clin,parental_dir=self.parental_dir,
@@ -236,9 +241,7 @@ class GdcApi(object):
                     read_to_merge.append(meta)
 
 
-          
-
-            result = pd.concat(read_to_merge,axis=1)
+            result = pd.concat(read_to_merge, axis=1, join='outer', sort=True)
 
             ## Store tumor and normal info separatelly
             if sub_folder == "sample_pheno":
@@ -255,7 +258,7 @@ class GdcApi(object):
 
             result.index.name = 'patient'
 
-            storeData(pd.concat(read_to_merge,axis=1),
+            storeData(pd.concat(read_to_merge, axis=1,join='outer',sort=True),
                      parental_dir=self.parental_dir,
                      sub_folder=sub_folder,cancer=self.cancer)
 
