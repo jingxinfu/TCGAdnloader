@@ -17,54 +17,22 @@ if __name__ == "__main__":
                         required=False,help="Data type included")
                         
     args = parser.parse_args()
- 
     for cancer in args.cancer:
         if 'hg19' in args.ref:
-            # save the downloaded info
-            if os.path.isfile('/'.join([args.output, 'hg19_download.log'])):
-                with open('/'.join([args.output, 'hg19_download.log']), 'r') as f:
-                    content = f.readlines()
-                content = [x.strip() for x in content]
-
-            else:
-                content = []
-            
-            if not cancer in content :
-                dl = downloader.FireBrowseDnloader(parental_dir=args.output+'/hg19',
-                                                cancer=cancer,
-                                                workflow=args.datatype)
-                dl.run()
-                with open('/'.join([args.output,'hg19_download.log']),'a+') as f:
-                    f.write(cancer+'\n')
-
-        if 'hg38' in args.ref:
-            if os.path.isfile('/'.join([args.output, 'hg38_download.log'])):
-                with open('/'.join([args.output, 'hg38_download.log']), 'r') as f:
-                    content = f.readlines()
-                content = [x.strip() for x in content]
-            else:
-                content = []
-            if not cancer in content:
-                dl = downloader.GdcDnloader(parental_dir=args.output+'/hg38',
+            dl = downloader.FireBrowseDnloader(parental_dir=args.output+'/hg19',
                                             cancer=cancer,
                                             workflow=args.datatype)
-                dl.run()
-                with open('/'.join([args.output, 'hg38_download.log']), 'a+') as f:
-                    f.write(cancer+'\n')
-
-        if args.meta == True and cancer != 'LAML':
-            if os.path.isfile('/'.join([args.output, 'meta_download.log'])):
-                with open('/'.join([args.output, 'meta_download.log']),'r') as f:
-                    content = f.readlines()
-                content = [x.strip() for x in content]
-            else:
-                content = []
-
-            if not cancer in content:
-                dl = downloader.GdcApi(parental_dir=args.output,
-                                            cancer=cancer)
-                dl.clin()
-                dl.biospecimen()
-                with open('/'.join([args.output, 'meta_download.log']), 'a+') as f:
-                    f.write(cancer+'\n')
+            dl.run()
+               
+        if 'hg38' in args.ref:
+            dl = downloader.GdcDnloader(parental_dir=args.output+'/hg38',
+                                        cancer=cancer,
+                                        workflow=args.datatype)
+            dl.run()
+               
+        if args.meta == True:
+            dl = downloader.GdcApi(parental_dir=args.output,
+                                        cancer=cancer)
+            dl.metaDownload()
+                
    

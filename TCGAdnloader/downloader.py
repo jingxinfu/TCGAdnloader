@@ -179,30 +179,37 @@ class GdcApi(object):
         '''
 
         read_to_merge=[]
+        stderr = ''
         for k,v in CLIN_INFO.items():
-            meta,_ = self.getTable(data_type=k)
-            # The reason why use the second raw as row name is that
-            # the name of follow_up info columns is consistent with different version
-            meta.columns = meta.iloc[0,:]
-            meta = meta.iloc[2:,]
-            meta = meta[meta.columns.intersection(v)]
-            non_info = pd.Index(v).difference(meta.columns)
-            
-            for c in non_info:
-                meta[c] = '[Not Applicable]'
-            read_to_merge.append(meta)
+            meta,error = self.getTable(data_type=k)
+            if error == None:
+                # The reason why use the second raw as row name is that
+                # the name of follow_up info columns is consistent with different version
+                meta.columns = meta.iloc[0,:]
+                meta = meta.iloc[2:,]
+                meta = meta[meta.columns.intersection(v)]
+                non_info = pd.Index(v).difference(meta.columns)
+                
+                for c in non_info:
+                    meta[c] = '[Not Applicable]'
+                read_to_merge.append(meta)
+            else:
+                stderr += 'Cannot Found\t'+'Surv_'+k+'\t'+self.cancer+'\n'
+        if len(read_to_merge) > 0:
+            basic_clin = pd.concat(read_to_merge,join='outer',axis=0,sort=True)
+            basic_clin = formatClin(basic_clin)
+            basic_clin.index.name = 'patient'
 
-        basic_clin = pd.concat(read_to_merge,join='outer',axis=0,sort=True)
-        basic_clin = formatClin(basic_clin)
-        basic_clin.index.name = 'patient'
-
-        storeData(basic_clin,parental_dir=self.parental_dir,
-                  sub_folder='Surv',cancer=self.cancer)
+            storeData(basic_clin,parental_dir=self.parental_dir,
+                      sub_folder='Surv',cancer=self.cancer)
+        
+        return stderr
 
     def biospecimen(self):
         '''
         Downloading  biopecimen information
         '''
+        stderr = ''
         for sub_folder,files in Biospecimen_INFO.items():
             read_to_merge = []
             for k, v in files.items():
@@ -239,30 +246,53 @@ class GdcApi(object):
                         meta = meta.merge(pam50, left_index=True,right_index=True,how='left')
 
                     read_to_merge.append(meta)
+                else:
+                    stderr += 'Cannot Found\t'+sub_folder+'_'+k+'\t'+self.cancer+'\n'
+            
+            if len(read_to_merge) > 0:
+                result = pd.concat(read_to_merge, axis=1, join='outer', sort=True)
 
+                ## Store tumor and normal info separatelly
+                if sub_folder == "sample_pheno":
+                    for s in ['tumor','normal']:
+                        sub_result = pick(result, source=s, transpose=True)
+                        sub_result.index = sub_result.index.map(
+                            lambda x: '-'.join(x.split('-')[:3]))
+                            
+                        storeData(sub_result,
+                                parental_dir=self.parental_dir,
+                                sub_folder='/'.join([sub_folder,s]), cancer=self.cancer)
+                    
+                    sub_folder += '/origin'
 
-            result = pd.concat(read_to_merge, axis=1, join='outer', sort=True)
+                result.index.name = 'patient'
 
-            ## Store tumor and normal info separatelly
-            if sub_folder == "sample_pheno":
-                for s in ['tumor','normal']:
-                    sub_result = pick(result, source=s, transpose=True)
-                    sub_result.index = sub_result.index.map(
-                        lambda x: '-'.join(x.split('-')[:3]))
-                        
-                    storeData(sub_result,
-                              parental_dir=self.parental_dir,
-                              sub_folder='/'.join([sub_folder,s]), cancer=self.cancer)
-                   
-                sub_folder += '/origin'
+                storeData(pd.concat(read_to_merge, axis=1,join='outer',sort=True),
+                        parental_dir=self.parental_dir,
+                        sub_folder=sub_folder,cancer=self.cancer)
+        
+        return stderr
 
-            result.index.name = 'patient'
+    def metaDownload(self):
+        if not os.path.isdir(self.parental_dir):
+            os.makedirs(self.parental_dir)
+        # asyn download
+        download_log_file = '/'.join([self.parental_dir, 'meta_finish.log'])
+        if os.path.isfile(download_log_file):
+            with open(download_log_file, 'r') as f:
+                content = f.readlines()
+            content = [x.strip() for x in content]
+        else:
+            content = []
+        # begain download if not having been downloaded before
+        if not self.cancer in content:
+            with open('/'.join([self.parental_dir, 'meta_stderr.log']), 'a+') as stderrs:
+                for n in ['biospecimen', 'clin']:
+                    logs = self.__getattribute__(n)()
+                stderrs.write(logs)
 
-            storeData(pd.concat(read_to_merge, axis=1,join='outer',sort=True),
-                     parental_dir=self.parental_dir,
-                     sub_folder=sub_folder,cancer=self.cancer)
-
-
+            with open(download_log_file, 'a+') as f:
+                f.write(self.cancer+'\n')
 
 class Workflow(object):
     __slot__ = ['cancer', 'parental_dir', 'workflow']
@@ -271,11 +301,27 @@ class Workflow(object):
         self.parental_dir = parental_dir
         self.workflow = workflow
 
-
     def run(self):
-        for n in self.workflow:
-            self.__getattribute__(n)()
-            
+        if not os.path.isdir(self.parental_dir):
+            os.makedirs(self.parental_dir)
+        # asyn download
+        download_log_file = '/'.join([self.parental_dir, 'finish.log'])
+        if os.path.isfile(download_log_file):
+            with open(download_log_file, 'r') as f:
+                content = f.readlines()
+            content = [x.strip() for x in content]
+        else:
+            content = []
+        # begain download if not having been downloaded before
+        if not self.cancer in content:
+            with open('/'.join([self.parental_dir, 'stderr.log']), 'a+') as stderrs:
+                for n in self.workflow:
+                    logs = self.__getattribute__(n)()
+                stderrs.write(logs)
+
+            with open(download_log_file, 'a+') as f:
+                f.write(self.cancer+'\n')
+        
 
 class FireBrowseDnloader(Workflow):
     __slot__ = ['release_time']
@@ -360,10 +406,39 @@ class FireBrowseDnloader(Workflow):
             short_release_time=short_release_time,
             )
         )
+
         cmd ="""
         set -x
         [[ -d {store_dir}_{cancer}_{data_type}_tmp ]] || mkdir -p {store_dir}_{cancer}_{data_type}_tmp
         wget -q -O {store_dir}_{cancer}_{data_type}.gz {url}
+        """.format(**dict(
+            store_dir=store_dir,
+            cancer=self.cancer,
+            url=url,
+            data_type=data_type
+            )
+        )
+
+        try:
+            subprocess.run(cmd, shell=True,check=True)
+            log = 'Success'
+        except subprocess.CalledProcessError as e:
+            cmd = """
+            set -x
+            rm {store_dir}_{cancer}_{data_type}.gz 
+            rm -rf {store_dir}_{cancer}_{data_type}_tmp
+            """.format(**dict(
+                    store_dir=store_dir,
+                    cancer=self.cancer,
+                    data_type=data_type
+                )
+            )
+            subprocess.run(cmd, shell=True, check=True)
+            return str(e.returncode)
+        
+        ## process data
+        cmd = """
+        set -x
         tar -xvvf {store_dir}_{cancer}_{data_type}.gz -C {store_dir}_{cancer}_{data_type}_tmp --strip-components=1
         rm {store_dir}_{cancer}_{data_type}.gz
         if [ $(ls {store_dir}_{cancer}_{data_type}_tmp/*{keep_suffix}| wc -l) -gt 1 ];then
@@ -374,17 +449,11 @@ class FireBrowseDnloader(Workflow):
         """.format(**dict(
             store_dir=store_dir,
             cancer=self.cancer,
-            url=url,
             keep_suffix=keep_suffix_dict[data_type],
-            data_type=data_type,
+            data_type=data_type
             )
         )
-
-        try:
-            subprocess.call(cmd,shell=True)
-            log = 'Success'
-        except subprocess.CalledProcessError as e:
-            log = e
+        subprocess.run(cmd,shell=True,check=True)
 
         return log
 
@@ -479,7 +548,7 @@ class FireBrowseDnloader(Workflow):
         log = self._fget(data_type='rna_raw',store_dir=store_dir_raw)
 
         if log != 'Success':
-            return 'rna_raw:    '+log
+            return 'Cannot Found\trna_raw\t'+self.cancer+'\n'
 
         raw_rnaseq = self._splitCountTPM(
             raw_rnaseq_path='_'.join([store_dir_raw, self.cancer])
@@ -514,7 +583,7 @@ class FireBrowseDnloader(Workflow):
         log = self._fget(data_type='rna_norm',store_dir=store_dir_norm)
 
         if log != 'Success':
-            return 'rna_norm:    '+log
+            return 'Cannot Found\trna_norm\t'+self.cancer+'\n'
 
         rnaseq_norm = pd.read_table(
             '_'.join([store_dir_norm, self.cancer]), index_col=0, skiprows=[1])
@@ -525,7 +594,8 @@ class FireBrowseDnloader(Workflow):
 
         subprocess.call(
             'rm -rf {}'.format('_'.join([store_dir_norm, self.cancer])), shell=True)
-        return 'Success'
+
+        return ''
 
     def cnv(self):
         '''
@@ -543,7 +613,7 @@ class FireBrowseDnloader(Workflow):
         log = self._fget( data_type='cnv_gene_somatic',store_dir=store_dir)
 
         if log != 'Success':
-            return 'cnv:    '+log
+            return 'Cannot Found\tcnv_gene_somatic\t'+self.cancer+'\n'
 
         cnv_gene = self._formatGistic(
             gistic_path='_'.join([store_dir, self.cancer]))
@@ -561,7 +631,7 @@ class FireBrowseDnloader(Workflow):
             log = self._fget(data_type='cnv_segment_'+lv, store_dir=store_dir)
 
             if log != 'Success':
-                return 'cnv:    '+log
+                return 'Cannot Found\t' + 'cnv_segment_'+lv+'\t'+self.cancer+'\n'
 
             if not os.path.exists(store_dir):
                     os.makedirs(store_dir)
@@ -570,8 +640,8 @@ class FireBrowseDnloader(Workflow):
                                     '/'.join([store_dir, self.cancer])
                                     ),
                     shell=True)
-        
-        return 'Success'
+
+        return ''
 
     def rppa(self):
         '''
@@ -589,7 +659,7 @@ class FireBrowseDnloader(Workflow):
         log=self._fget(data_type='rppa',store_dir=store_dir)
 
         if log != 'Success':
-            return 'RPPA:    '+log
+            return 'Cannot Found\trppa\t'+self.cancer+'\n'
 
         rppa = pd.read_table(
             '_'.join([store_dir,self.cancer]), index_col=0)
@@ -603,13 +673,15 @@ class FireBrowseDnloader(Workflow):
         subprocess.call(
             'rm -rf {}'.format('_'.join([store_dir, self.cancer])), shell=True)
 
-        return 'Success'
+        return ''
 
     def snv(self):
-        print('''
-            Please use MC3 downloader to fetch the SNV result for all cancer in TCGA, 
-            which is more robust.
-        ''')
+        '''
+        Please use MC3 downloader to fetch the SNV result for all cancer in TCGA, 
+        which is more robust.
+        '''
+        return 'GO TO MC3\tsnv\t'+self.cancer+'\n'
+        
 
 
 class GdcDnloader(GdcApi, Workflow):
@@ -674,7 +746,6 @@ class GdcDnloader(GdcApi, Workflow):
         set -x
         [[ -d {store_dir} ]] || mkdir -p {store_dir}
         wget -q -O {store_dir}/{cancer}.gz {url}
-        gunzip {store_dir}/{cancer}.gz
         """.format(**dict(
                 store_dir=store_dir,
                 cancer=self.cancer,
@@ -682,11 +753,17 @@ class GdcDnloader(GdcApi, Workflow):
             )
         )
         try:
-            subprocess.call(cmd, shell=True)
+            subprocess.run(cmd, shell=True, check=True)
             log = 'Success'
+            cmd = "set -x; gunzip {store_dir}/{cancer}.gz".format(**dict(store_dir=store_dir,
+                                                                 cancer=self.cancer))
         except subprocess.CalledProcessError as e:
-                log = e
-
+            log = str(e.returncode)
+            cmd = "set -x; rm {store_dir}/{cancer}.gz".format(**dict(store_dir=store_dir,
+                                                             cancer=self.cancer))
+        
+        
+        subprocess.run(cmd, shell=True, check=True)
         return log
 
     def rnaseq(self):
@@ -696,7 +773,7 @@ class GdcDnloader(GdcApi, Workflow):
             log = self._fget(data_type=name, store_dir=store_dir)
 
             if log != 'Success':
-                return name+':    '+log
+                return 'Cannot Found\t' + name+'\t'+self.cancer+'\n'
 
             df = pd.read_table('/'.join([store_dir,self.cancer]),index_col=0)
             df = np.exp2(df) - 1  # since all matrix download from xenas have been log transformed
@@ -728,7 +805,9 @@ class GdcDnloader(GdcApi, Workflow):
 
             subprocess.call(
                 'rm -rf {}'.format('/'.join([store_dir, self.cancer])), shell=True)
-                
+
+        return ''
+
     def snv(self):
         store_parental = '/'.join([self.parental_dir, 'SNV'])
         for name in self.type_available['SNV']:
@@ -737,7 +816,9 @@ class GdcDnloader(GdcApi, Workflow):
             log = self._fget(data_type=name, store_dir=store_dir)
 
             if log != 'Success':
-                return name+':    '+log
+                return 'Cannot Found\t' + name+'\t'+self.cancer+'\n'
+
+        return ''
 
 
     def cnv(self):
@@ -747,13 +828,14 @@ class GdcDnloader(GdcApi, Workflow):
         ## map uuid to barcode
         meta, errors = self.getTable(data_type='aliquot')
         if errors != None:
-            return errors
+            return 'Cannot Found\tuuid map barcode\t'+self.cancer+'\n'
 
         meta = meta.dropna(
             axis=0).set_index('bcr_aliquot_uuid')
         meta.index = meta.index.map(lambda x: x.lower())
         meta = meta['bcr_sample_barcode'].to_dict()
 
+        stderr = ''
         # focal data
         df,errors = self.getTable(data_type='gistic')
         if errors == None:
@@ -763,7 +845,8 @@ class GdcDnloader(GdcApi, Workflow):
             df = mapEm2Gene(df)
             storeData(df=df, parental_dir=store_parental,
                     sub_folder='somatic/gene/focal', cancer=self.cancer)
-
+        else:
+            stderr += 'Cannot Found\tgistic\t'+self.cancer+'\n'
         # Segment data
         ## somatic 
         df, errors = self.getTable(data_type='cnv_segment_somatic', by_name=False)
@@ -771,6 +854,8 @@ class GdcDnloader(GdcApi, Workflow):
             df['GDC_Aliquot'] = df['GDC_Aliquot'].map(meta)
             storeData(df=df, parental_dir=store_parental,
                     sub_folder='somatic/segment', cancer=self.cancer,index=False)
+        else:
+            stderr += 'Cannot Found\tcnv_segment_somatic\t'+self.cancer+'\n'
 
         # all 
         df, errors = self.getTable(data_type='cnv_segment_all', by_name=False)
@@ -778,13 +863,17 @@ class GdcDnloader(GdcApi, Workflow):
             df['GDC_Aliquot'] = df['GDC_Aliquot'].map(meta)
             storeData(df=df, parental_dir=store_parental,
                     sub_folder='all/segment', cancer=self.cancer, index=False)
-
-        return 'Success'
+        else:
+            stderr += 'Cannot Found\tcnv_segment_all\t'+self.cancer +'\n'
+        
        
+        return stderr
 
-    
+
     def rppa(self):
-        print('RPPA data for hg38 is not available.')
+        # RPPA data for hg38 is not available.
+        return 'Not Available\trppa\t'+self.cancer + '\n'
+
 
 # class mc3Dnloader(object):
 
