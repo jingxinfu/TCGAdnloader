@@ -872,32 +872,3 @@ class GdcDnloader(GdcApi, Workflow):
     def rppa(self):
         # RPPA data for hg38 is not available.
         return 'Not Available\trppa\t'+self.cancer + '\n'
-
-
-# class mc3Dnloader(object):
-
-#     def __init__(self, store_dir, ref='hg19'):
-#         self.ref = ref
-#         self.store_dir = store_dir
-
-#     def download(self):
-#         cmd = ''' 
-#         set - x
-#         [-d {store_dir}/] | | mkdir - p {store_dir}/
-#         wget -v -O {store_dir}/mc3.gz {url} 
-#         tar -xvvf {store_dir}/mc3.gz -C {store_dir}/ --strip-components=1
-#         rm {store_dir}/mc3.gz
-#         '''
-
-#         if self.ref == 'hg19':
-#             url = 'https://api.gdc.cancer.gov/data/1c8cfe5f-e52d-41ba-94da-f15ea1337efc'
-#         else:
-#             url = ''
-
-#         cmd = cmd.format(**dict(
-#             store_dir=self.store_dir,
-#             url=url,
-#         )
-#         )
-#         subprocess.call()
-        

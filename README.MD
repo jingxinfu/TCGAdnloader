@@ -1,8 +1,15 @@
 ## Introduction
 
-This package is for downloading TCGA project data on a managable data structure (see following output structure). Both of hg19 and hg38 version are provided. Please feel free to open up issue if you have any questions.
-### Notice:
-The scale of TPM/FPKM range between hg19 and hg38 has hug difference.
+This package is for downloading TCGA project data on a managable data structure (see following output structure). Both of hg19 and hg38 version are provided. Please feel free to open up issues if you have any questions.
+
+***
+
+> *Noticce: The TPM/FPKM range between hg19 and hg38 has hug difference.* 
+
+***
+
+
+
 ## Install:
 
 ```
@@ -76,6 +83,9 @@ optional arguments:
     │       ├── origin
     │       └── zscore_tumor
     ├── sample_pheno
+    │   ├── origin
+    |   ├── normal
+    │   └── tumor
     ├── SNV
     │   ├── muse
     │   ├── mutect2
@@ -86,7 +96,7 @@ optional arguments:
 ### Note:
 - CNV
 
-  - broad_focal : Region reaches significance due to either broad or focal event
+  - broad_focal : Region reaches significance due to either broad or focal event.
 - RNA-Seq
   - origin: Files directly downloaded by API
 
@@ -110,3 +120,6 @@ optional arguments:
 - RPPA
 
   - Only available for hg19
+
+- SNV:
+  - Mutation files for hg19 can be downloaded separatly by this [url](https://api.gdc.cancer.gov/data/1c8cfe5f-e52d-41ba-94da-f15ea1337efc). This is a MC3 results.
