@@ -411,9 +411,16 @@ class FireBrowseDnloader(Workflow):
         set -x
         [[ -d {store_dir}_{cancer}_{data_type}_tmp ]] || mkdir -p {store_dir}_{cancer}_{data_type}_tmp
         wget -q -O {store_dir}_{cancer}_{data_type}.gz {url}
+        tar -xvvf {store_dir}_{cancer}_{data_type}.gz -C {store_dir}_{cancer}_{data_type}_tmp --strip-components=1
+        rm {store_dir}_{cancer}_{data_type}.gz
+        if [ $(ls {store_dir}_{cancer}_{data_type}_tmp/*{keep_suffix}| wc -l) -gt 1 ];then
+            [[ -d {store_dir}_{cancer} ]] || mkdir {store_dir}_{cancer}
+        fi
+        mv {store_dir}_{cancer}_{data_type}_tmp/*{keep_suffix} {store_dir}_{cancer}
         """.format(**dict(
             store_dir=store_dir,
             cancer=self.cancer,
+            keep_suffix=keep_suffix_dict[data_type],
             url=url,
             data_type=data_type
             )
@@ -438,18 +445,10 @@ class FireBrowseDnloader(Workflow):
         
         ## process data
         cmd = """
-        set -x
-        tar -xvvf {store_dir}_{cancer}_{data_type}.gz -C {store_dir}_{cancer}_{data_type}_tmp --strip-components=1
-        rm {store_dir}_{cancer}_{data_type}.gz
-        if [ $(ls {store_dir}_{cancer}_{data_type}_tmp/*{keep_suffix}| wc -l) -gt 1 ];then
-            [[ -d {store_dir}_{cancer} ]] || mkdir {store_dir}_{cancer}
-        fi
-        mv {store_dir}_{cancer}_{data_type}_tmp/*{keep_suffix} {store_dir}_{cancer}
         rm -rf {store_dir}_{cancer}_{data_type}_tmp
         """.format(**dict(
             store_dir=store_dir,
             cancer=self.cancer,
-            keep_suffix=keep_suffix_dict[data_type],
             data_type=data_type
             )
         )
