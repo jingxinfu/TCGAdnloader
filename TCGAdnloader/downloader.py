@@ -131,6 +131,10 @@ class GdcApi(object):
             file_uuid_list = []
             params = self._projFilter(data_type)
             response = requests.get(self.files_endpt, params=params)
+
+            if "message" in json.loads(response.content.decode("utf-8")).keys():
+                return None, 'Not found'
+
             for file_entry in json.loads(response.content.decode("utf-8"))["data"]["hits"]:
                 file_uuid_list.append(file_entry["file_id"])
 
