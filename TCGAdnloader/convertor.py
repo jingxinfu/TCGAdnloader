@@ -105,7 +105,7 @@ def calTNzcore(df,pair_TN = True):
          norm_factor = tumor.mean(axis=1)
 
     result = tumor.subtract(norm_factor, axis=0)
-    result.columns = result.columns.map(lambda x: '-'.join(x.split('-')[:3]))
+    
     return result
 
 

@@ -233,6 +233,8 @@ class GdcApi(object):
                         meta.rename(
                             columns={'bcr_sample_barcode': 'patient'}, inplace=True)
                         meta = meta.drop(0, axis=0).set_index('patient')
+                        if sub_folder == 'subtype_pheno':
+                            meta.index = meta.index.map(lambda x: x[:-1])
                        
                     elif 'hpv_status' in v:
                         meta = meta.drop(0,axis=0).set_index('patient')
@@ -262,9 +264,6 @@ class GdcApi(object):
                 if sub_folder == "sample_pheno":
                     for s in ['tumor','normal']:
                         sub_result = pick(result, source=s, transpose=True)
-                        sub_result.index = sub_result.index.map(
-                            lambda x: '-'.join(x.split('-')[:3]))
-                            
                         storeData(sub_result,
                                 parental_dir=self.parental_dir,
                                 sub_folder='/'.join([sub_folder,s]), cancer=self.cancer)
@@ -822,6 +821,10 @@ class GdcDnloader(GdcApi, Workflow):
 
             if log != 'Success':
                 return 'Cannot Found\t' + name+'\t'+self.cancer+'\n'
+            else:
+                df = pd.read_table('/'.join([store_dir, self.cancer]), index_col=0)
+                df.index = df.index.map(lambda x: x[:-1])
+                df.to_csv('/'.join([store_dir, self.cancer]), sep='\t')
 
         return ''
 
