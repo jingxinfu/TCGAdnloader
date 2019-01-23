@@ -238,7 +238,8 @@ class GdcApi(object):
                         meta = meta.drop(0,axis=0).set_index('patient')
                     else:
                         meta = meta.drop([0,1],axis=0).set_index('patient')
-                 
+
+                    
                     ## additional info
                     if k == 'slide':
                         meta = meta.apply(pd.to_numeric)

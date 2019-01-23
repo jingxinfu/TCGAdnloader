@@ -5,6 +5,7 @@ import numpy as np
 import os,re
 from .setting import ANNO_PATH, CLIN_MAP
 
+
 def rmEntrez(df):
     ''' Format gene expression profile with gene symbol index
     Specific function for expression data dowloaded from firebrowse.
