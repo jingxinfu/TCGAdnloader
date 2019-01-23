@@ -23,7 +23,7 @@ Biospecimen_INFO = {
         
     },
     "patient_pheno":{
-        # "sample": ['bcr_sample_barcode', 'sample_type'],  : commented out because we can get sample type by TCGA barcode.
+        "sample": ['bcr_sample_barcode', 'sample_type'],  #: commented out because we can get sample type by TCGA barcode.
 
         "auxilary": [
                 'bcr_patient_barcode', 'hpv_status',

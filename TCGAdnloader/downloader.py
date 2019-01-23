@@ -256,6 +256,7 @@ class GdcApi(object):
             if len(read_to_merge) > 0:
                 result = pd.concat(read_to_merge, axis=1, join='outer', sort=True)
 
+                
                 ## Store tumor and normal info separatelly
                 if sub_folder == "sample_pheno":
                     for s in ['tumor','normal']:
