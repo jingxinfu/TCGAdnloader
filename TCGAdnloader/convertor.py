@@ -109,9 +109,9 @@ def calTNzcore(df,pair_TN = True):
     return result
 
 
-def mergeSampleToPatient(df,transpose=False):
+def mergeToSample(df,transpose=False):
     '''
-    Changes samples level profile into patient level, but keep tumor and normal information.
+    Changes aliquot level profile into sample level, but keep tumor and normal information.
     Data from the same sample but from different vials/portions/analytes/aliquotes is averaged.
 
     Parameters

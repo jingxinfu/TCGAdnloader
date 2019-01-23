@@ -12,7 +12,7 @@ ANNO_PATH = '/'.join([BASE_DIR, 'data/gencode.v22.annotation.gene.probeMap'])
 PAM50_PATH = '/'.join([BASE_DIR, 'data/PAM50.txt'])
 
 Biospecimen_INFO = {
-    "sample_pheno": {
+    "histology": {
         "slide":[
                 'bcr_sample_barcode', 'percent_lymphocyte_infiltration',
                 'percent_monocyte_infiltration', 'percent_necrosis',
@@ -22,10 +22,8 @@ Biospecimen_INFO = {
               ],
         
     },
-    "subtype_pheno":{
+    "phenotype":{
         "sample": ['bcr_sample_barcode', 'sample_type'],
-    },
-    "patient_pheno":{
         "auxilary": [
                 'bcr_patient_barcode', 'hpv_status',
                 'mononucleotide_and_dinucleotide_marker_panel_analysis_status'
@@ -37,6 +35,7 @@ Biospecimen_INFO = {
 }
 
 Biospecimen_MAP ={
+    'bcr_sample_barcode': 'sample',
     'bcr_patient_barcode': 'patient',
     'mononucleotide_and_dinucleotide_marker_panel_analysis_status':'MSI_Status'
 }

@@ -3,7 +3,8 @@
 import subprocess, os,time
 import pandas as pd
 import numpy as np
-from .convertor import mergeSampleToPatient, calTNzcore, rmEntrez, tpmToFpkm, mapEm2Gene, formatClin, pick
+from functools import reduce
+from .convertor import mergeToSample, calTNzcore, rmEntrez, tpmToFpkm, mapEm2Gene, formatClin, pick
 from .outformat import storeData
 import requests,json,re,io
 from .setting import CLIN_INFO, Biospecimen_INFO, Biospecimen_MAP, PAM50_PATH, CLIN_VERSION
@@ -230,52 +231,55 @@ class GdcApi(object):
 
                     ## header process
                     if 'bcr_sample_barcode' in v:
-                        meta.rename(
-                            columns={'bcr_sample_barcode': 'patient'}, inplace=True)
-                        meta = meta.drop(0, axis=0).set_index('patient')
-                        if sub_folder == 'subtype_pheno':
-                            meta.index = meta.index.map(lambda x: x[:-1])
+                        meta = meta.drop(0, axis=0)
+                        if k == 'sample':
+                            meta['sample'] = meta['sample'].map(lambda x: x[:-1])
                             meta = meta.drop_duplicates()
+                            meta['patient'] = meta['sample'].map(lambda x: '-'.join(x.split('-')[:3]))
                        
                     elif 'hpv_status' in v:
-                        meta = meta.drop(0,axis=0).set_index('patient')
+                        meta = meta.drop(0,axis=0)
                     else:
-                        meta = meta.drop([0,1],axis=0).set_index('patient')
+                        meta = meta.drop([0,1],axis=0)
 
                     
                     ## additional info
                     if k == 'slide':
+                        meta = meta.set_index('sample')
                         meta = meta.apply(pd.to_numeric)
-                        meta = mergeSampleToPatient(meta,transpose=True)
+                        meta = mergeToSample(meta,transpose=True)
 
                     if k == "patient" and self.cancer == 'BRCA':
                         pam50 = pd.read_table(PAM50_PATH, index_col=0).rename(columns={
                             "PAM50 mRNA":'Subtype'})['Subtype'].to_frame()
-                        meta = meta.merge(pam50, left_index=True,right_index=True,how='left')
+                        meta = meta.merge(pam50, left_on='patient',right_index=True,how='left')
 
                     read_to_merge.append(meta)
                 else:
                     stderr += 'Cannot Found\t'+sub_folder+'_'+k+'\t'+self.cancer+'\n'
             
-            if len(read_to_merge) > 0:
-                result = pd.concat(read_to_merge, axis=1, join='outer', sort=True)
+            if len(read_to_merge) > 1:
+                result = reduce(lambda x,y:pd.merge(x,y, how='outer',on='patient'),read_to_merge).drop_duplicates().dropna(axis=1,how='all')
+                keep_index = False
+            elif len(read_to_merge) == 1:
+                result = read_to_merge[0]
+                keep_index = True
+            else:
+                continue
 
+            ## Store tumor and normal info separatelly
+            if sub_folder == "histology":
+                for s in ['tumor','normal']:
+                    sub_result = pick(result, source=s, transpose=True)
+                    storeData(sub_result,
+                            parental_dir=self.parental_dir,
+                            sub_folder='/'.join([sub_folder,s]), cancer=self.cancer)
                 
-                ## Store tumor and normal info separatelly
-                if sub_folder == "sample_pheno":
-                    for s in ['tumor','normal']:
-                        sub_result = pick(result, source=s, transpose=True)
-                        storeData(sub_result,
-                                parental_dir=self.parental_dir,
-                                sub_folder='/'.join([sub_folder,s]), cancer=self.cancer)
-                    
-                    sub_folder += '/origin'
+                sub_folder += '/origin'
 
-                result.index.name = 'patient'
-
-                storeData(pd.concat(read_to_merge, axis=1,join='outer',sort=True),
-                        parental_dir=self.parental_dir,
-                        sub_folder=sub_folder,cancer=self.cancer)
+            storeData(result,
+                    parental_dir=self.parental_dir,
+                    sub_folder=sub_folder,cancer=self.cancer,index=keep_index)
         
         return stderr
 
@@ -485,7 +489,7 @@ class FireBrowseDnloader(Workflow):
         col_selector = pd.read_table(raw_rnaseq_path, index_col=0, nrows=2)
 
         raw_count = df.loc[:, col_selector.iloc[0, :] =='raw_count']
-        raw_count = mergeSampleToPatient(raw_count)
+        raw_count = mergeToSample(raw_count)
         raw_count = round(raw_count)
 
         ## Get fpkm and tpm information from transcript fractions
@@ -494,8 +498,8 @@ class FireBrowseDnloader(Workflow):
         normalize_factor = transcipt_fraction.sum(axis=0)
         fpkm = transcipt_fraction * normalize_factor * 10e9
 
-        tpm = mergeSampleToPatient(tpm)
-        fpkm = mergeSampleToPatient(fpkm)
+        tpm = mergeToSample(tpm)
+        fpkm = mergeToSample(fpkm)
 
         return dict(count=raw_count,tpm=tpm,fpkm=fpkm)
 
@@ -592,7 +596,7 @@ class FireBrowseDnloader(Workflow):
 
         rnaseq_norm = pd.read_table(
             '_'.join([store_dir_norm, self.cancer]), index_col=0, skiprows=[1])
-        rnaseq_norm = mergeSampleToPatient(rnaseq_norm)
+        rnaseq_norm = mergeToSample(rnaseq_norm)
         rnaseq_norm = rmEntrez(rnaseq_norm)
         storeData(df=rnaseq_norm, parental_dir=store_dir,
                   sub_folder='norm_count/origin', cancer=self.cancer)
@@ -623,7 +627,7 @@ class FireBrowseDnloader(Workflow):
         cnv_gene = self._formatGistic(
             gistic_path='_'.join([store_dir, self.cancer]))
         for name, df in cnv_gene.items():
-            df = mergeSampleToPatient(df)
+            df = mergeToSample(df)
             storeData(df=df, parental_dir=store_dir,
                       sub_folder=name, cancer=self.cancer)
         subprocess.call(
@@ -670,7 +674,7 @@ class FireBrowseDnloader(Workflow):
             '_'.join([store_dir,self.cancer]), index_col=0)
 
         rppa = rmEntrez(rppa)
-        rppa = mergeSampleToPatient(rppa)
+        rppa = mergeToSample(rppa)
 
         storeData(df=rppa, parental_dir=store_dir,
                   sub_folder='', cancer=self.cancer)
@@ -782,7 +786,7 @@ class GdcDnloader(GdcApi, Workflow):
 
             df = pd.read_table('/'.join([store_dir,self.cancer]),index_col=0)
             df = np.exp2(df) - 1  # since all matrix download from xenas have been log transformed
-            df = mergeSampleToPatient(df)
+            df = mergeToSample(df)
             df = mapEm2Gene(df)
             
             if name == 'fpkm':
@@ -825,6 +829,7 @@ class GdcDnloader(GdcApi, Workflow):
             else:
                 df = pd.read_table('/'.join([store_dir, self.cancer]), index_col=0)
                 df.index = df.index.map(lambda x: x[:-1])
+                df.index.name = 'sample'
                 df.to_csv('/'.join([store_dir, self.cancer]), sep='\t')
 
         return ''
@@ -850,7 +855,7 @@ class GdcDnloader(GdcApi, Workflow):
         if errors == None:
             df = df.set_index('Gene Symbol').drop(['Gene ID', 'Cytoband'],axis=1)
             df.columns = df.columns.map(meta)
-            df = mergeSampleToPatient(df)
+            df = mergeToSample(df)
             df = mapEm2Gene(df)
             storeData(df=df, parental_dir=store_parental,
                     sub_folder='somatic/gene/focal', cancer=self.cancer)
