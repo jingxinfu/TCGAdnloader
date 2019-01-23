@@ -1,5 +1,0 @@
-patient	percent_lymphocyte_infiltration	percent_monocyte_infiltration	percent_necrosis	percent_neutrophil_infiltration	percent_normal_cells	percent_stromal_cells	percent_tumor_cells	percent_tumor_nuclei
-TCGA-OR-A5K9-11	0.0	0.0	0	0.0	100.0	0.0	0.0	0
-TCGA-OR-A5KB-11	0.0	0.0	0	0.0	100.0	0.0	0.0	0
-TCGA-PK-A5HB-11	1.0	0.0	0	0.0	100.0	0.0	0.0	0
-TCGA-PK-A5HC-11	1.0	0.0	0	0.0	100.0	0.0	0.0	0

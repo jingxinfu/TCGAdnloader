@@ -235,6 +235,7 @@ class GdcApi(object):
                         meta = meta.drop(0, axis=0).set_index('patient')
                         if sub_folder == 'subtype_pheno':
                             meta.index = meta.index.map(lambda x: x[:-1])
+                            meta = meta.drop_duplicates()
                        
                     elif 'hpv_status' in v:
                         meta = meta.drop(0,axis=0).set_index('patient')
