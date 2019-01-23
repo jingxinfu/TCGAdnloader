@@ -251,7 +251,7 @@ class GdcApi(object):
 
                     if k == "patient" and self.cancer == 'BRCA':
                         pam50 = pd.read_table(PAM50_PATH, index_col=0).rename(columns={
-                            "PAM50 mRNA":'Subtype'})['Subtype'].to_frame()
+                            "PAM50 mRNA":'PAM50'})['PAM50'].to_frame()
                         meta = meta.merge(pam50, left_on='patient',right_index=True,how='left')
 
                     read_to_merge.append(meta)
