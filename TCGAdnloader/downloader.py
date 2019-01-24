@@ -260,10 +260,9 @@ class GdcApi(object):
             
             if len(read_to_merge) > 1:
                 result = reduce(lambda x,y:pd.merge(x,y, how='outer',on='patient'),read_to_merge).drop_duplicates().dropna(axis=1,how='all')
-                keep_index = False
+                result = result.set_index('patient') 
             elif len(read_to_merge) == 1:
                 result = read_to_merge[0]
-                keep_index = True
             else:
                 continue
 
@@ -279,7 +278,7 @@ class GdcApi(object):
 
             storeData(result,
                     parental_dir=self.parental_dir,
-                    sub_folder=sub_folder,cancer=self.cancer,index=keep_index)
+                    sub_folder=sub_folder,cancer=self.cancer)
         
         return stderr
 

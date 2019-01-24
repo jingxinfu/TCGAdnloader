@@ -167,8 +167,7 @@ def tpmToFpkm(df,reverse=False):
         return fpkm
 
 
-def formatClin(df,data_type='survival'):
-
+def formatClin(df):
     df.rename(columns=CLIN_MAP,inplace=True)
     df.replace('[Not Available]', np.nan, inplace=True)
     df.replace('[Not Applicable]', np.nan, inplace=True)
@@ -178,7 +177,9 @@ def formatClin(df,data_type='survival'):
     df['OS_Event'] = df['OS_Event'].map({'Dead': 1, 'Alive': 0})
     df['OS'] = df[['days_to_death', 'days_to_last_followup', ]].apply(
         pd.to_numeric).max(axis=1)
-    
+
+    df = df.drop(['days_to_death', 'days_to_last_followup'],axis=1)
+
     df['age'] = pd.to_numeric(df['age'])
     df['gender'] = pd.to_numeric(df['gender'].map({'FEMALE': 1, "MALE": 2}))
     df['stage'] = df['stage'].map(lambda x: re.sub(

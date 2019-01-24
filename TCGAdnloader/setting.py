@@ -7,9 +7,14 @@ BASE_DIR = os.path.dirname(os.path.realpath(__file__))+'/'
 ANNO_PATH = '/'.join([BASE_DIR, 'data/gencode.v22.annotation.gene.probeMap'])
 
 # TCGA BRCA Article (Cancer Genome Atlas Network. Nature, 2012)
-# Supplementary fiels: http://www.nature.com/nature/journal/v490/n7418/extref/nature11412-s2.zip
-# # SuppTable1, contains TCGA patients with PAM50
+## Supplementary files: http://www.nature.com/nature/journal/v490/n7418/extref/nature11412-s2.zip
+### SuppTable1, contains TCGA patients with PAM50
 PAM50_PATH = '/'.join([BASE_DIR, 'data/PAM50.txt'])
+
+# TCGA BRCA Article (Ciriello G, Gatza ML, Beck AH, et al. Cell. 2015)
+## Supplementary files: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4603750/bin/NIHMS724218-supplement-2.xlsx
+### Suppl. Table 1: Triple negative: All of ['ER IHC','PR IHC','HER2 IHC'] are negative
+
 
 Biospecimen_INFO = {
     "histology": {
