@@ -7,16 +7,16 @@ from functools import reduce
 from .convertor import mergeToSample, calTNzcore, rmEntrez, tpmToFpkm, mapEm2Gene, formatClin, pick
 from .outformat import storeData
 import requests,json,re,io
-from .setting import CLIN_INFO, Biospecimen_INFO, Biospecimen_MAP, PAM50_PATH, CLIN_VERSION
+from .setting import CLIN_INFO, Biospecimen_INFO, Biospecimen_MAP,CLIN_MAP ,PAM50_PATH
 
 class GdcApi(object):
     ''' 
     API for download files from GDC
     '''
 
-    __slot__ = ["files_endpt", "data_endpt", "cancer", "parental_dir"]
+    __slot__ = ["files_endpt", "data_endpt", "cancer", "parental_dir",'cases_endpt']
 
-    def __init__(self, cancer, parental_dir,data_endpt="https://api.gdc.cancer.gov/data", files_endpt="https://api.gdc.cancer.gov/files", **kwargs):
+    def __init__(self, cancer, parental_dir, cases_endpt='https://api.gdc.cancer.gov/cases', data_endpt="https://api.gdc.cancer.gov/data", files_endpt="https://api.gdc.cancer.gov/files", **kwargs):
         ''' Intialize instance parameters
         
         Parameters
@@ -36,6 +36,7 @@ class GdcApi(object):
         self.data_endpt = data_endpt
         self.cancer = cancer
         self.parental_dir = parental_dir
+        self.cases_endpt = cases_endpt
 
     def _projFilter(self, data_type):
         dtype_dict = {
@@ -77,7 +78,7 @@ class GdcApi(object):
     def _nameFilter(self, data_type):
         dtype_dict = {
             'gistic': '{}.focal_score_by_genes.txt'.format(self.cancer.upper()),
-            'survival': "nationwidechildrens.org_clinical_follow_up_v{0}_{1}.txt".format(CLIN_VERSION[self.cancer], self.cancer.lower()),
+            # 'survival': "nationwidechildrens.org_clinical_follow_up_v{0}_{1}.txt".format(CLIN_VERSION[self.cancer], self.cancer.lower()),
             'patient': "nationwidechildrens.org_clinical_patient_{}.txt".format(self.cancer.lower()),
             'aliquot': "nationwidechildrens.org_biospecimen_aliquot_{}.txt".format(self.cancer.lower()),
             'slide': "nationwidechildrens.org_biospecimen_slide_{}.txt".format(self.cancer.lower()),
@@ -144,7 +145,7 @@ class GdcApi(object):
         else:
             return file_uuid_list,None
        
-    def getTable(self, data_type, by_name=True, **kwargs):
+    def getTableFromFiles(self, data_type, by_name=True, **kwargs):
        
         ''' 
         Merging tables downloaded by a list of file ids
@@ -178,36 +179,54 @@ class GdcApi(object):
         
         return pd.concat(ready_to_merge,axis=0),None
 
+    def getClinInfo(self, fields):
+        filters = {
+                    "op": "in",
+                    "content": {
+                        "field": "cases.project.project_id",
+                        "value": [
+                            "TCGA-"+self.cancer.upper()
+                        ]
+                    }
+                }
+
+        fields = ','.join(fields)
+
+        params = {
+            "filters": json.dumps(filters),
+            "fields": fields,
+            "format": "TSV",
+            "size": "3000"
+        }
+        response = requests.get(self.cases_endpt, params=params)
+        if response.status_code != 200:
+            time.sleep(10)
+            response = requests.get(self.cases_endpt, params=params)
+
+        try:
+            result = pd.read_table(io.StringIO(response.content.decode("utf-8")))
+            error = None
+        except:
+            result=None
+            error='Not Found!'
+
+        return result,error
+
     def clin(self):
         '''
         Downloading clinical information
         '''
-
-        read_to_merge=[]
-        stderr = ''
-        for k,v in CLIN_INFO.items():
-            meta,error = self.getTable(data_type=k)
-            if error == None:
-                # The reason why use the second raw as row name is that
-                # the name of follow_up info columns is consistent with different version
-                meta.columns = meta.iloc[0,:]
-                meta = meta.iloc[2:,]
-                meta = meta[meta.columns.intersection(v)]
-                non_info = pd.Index(v).difference(meta.columns)
+        surs,stderr = self.getClinInfo(fields=CLIN_INFO)
+        if stderr == None:
+            surs.rename(columns=CLIN_MAP,inplace=True)
+            surs = surs[list(CLIN_MAP.values())] 
+            format_surs = formatClin(surs)
+            storeData(df=format_surs,parental_dir=self.parental_dir,
+            sub_folder='Sur',cancer=self.cancer)
+            stderr = ''
+        else:
+            stderr = 'Cannot Found\tsurvival_info\t'+self.cancer+'\n'
                 
-                for c in non_info:
-                    meta[c] = '[Not Applicable]'
-                read_to_merge.append(meta)
-            else:
-                stderr += 'Cannot Found\t'+'Surv_'+k+'\t'+self.cancer+'\n'
-        if len(read_to_merge) > 0:
-            basic_clin = pd.concat(read_to_merge,join='outer',axis=0,sort=True)
-            basic_clin = formatClin(basic_clin)
-            basic_clin.index.name = 'patient'
-
-            storeData(basic_clin,parental_dir=self.parental_dir,
-                      sub_folder='Surv',cancer=self.cancer)
-        
         return stderr
 
     def biospecimen(self):
@@ -218,7 +237,7 @@ class GdcApi(object):
         for sub_folder,files in Biospecimen_INFO.items():
             read_to_merge = []
             for k, v in files.items():
-                meta, errors = self.getTable(data_type=k)
+                meta, errors = self.getTableFromFiles(data_type=k)
                 if errors == None:
                     meta = meta[meta.columns.intersection(v)]
                     non_info = pd.Index(v).difference(meta.columns)
@@ -839,7 +858,7 @@ class GdcDnloader(GdcApi, Workflow):
         
         # meta data
         ## map uuid to barcode
-        meta, errors = self.getTable(data_type='aliquot')
+        meta, errors = self.getTableFromFiles(data_type='aliquot')
         if errors != None:
             return 'Cannot Found\tuuid map barcode\t'+self.cancer+'\n'
 
@@ -850,7 +869,7 @@ class GdcDnloader(GdcApi, Workflow):
 
         stderr = ''
         # focal data
-        df,errors = self.getTable(data_type='gistic')
+        df,errors = self.getTableFromFiles(data_type='gistic')
         if errors == None:
             df = df.set_index('Gene Symbol').drop(['Gene ID', 'Cytoband'],axis=1)
             df.columns = df.columns.map(meta)
@@ -862,7 +881,7 @@ class GdcDnloader(GdcApi, Workflow):
             stderr += 'Cannot Found\tgistic\t'+self.cancer+'\n'
         # Segment data
         ## somatic 
-        df, errors = self.getTable(data_type='cnv_segment_somatic', by_name=False)
+        df, errors = self.getTableFromFiles(data_type='cnv_segment_somatic', by_name=False)
         if errors == None:
             df['GDC_Aliquot'] = df['GDC_Aliquot'].map(meta)
             storeData(df=df, parental_dir=store_parental,
@@ -871,7 +890,7 @@ class GdcDnloader(GdcApi, Workflow):
             stderr += 'Cannot Found\tcnv_segment_somatic\t'+self.cancer+'\n'
 
         # all 
-        df, errors = self.getTable(data_type='cnv_segment_all', by_name=False)
+        df, errors = self.getTableFromFiles(data_type='cnv_segment_all', by_name=False)
         if errors == None:
             df['GDC_Aliquot'] = df['GDC_Aliquot'].map(meta)
             storeData(df=df, parental_dir=store_parental,
