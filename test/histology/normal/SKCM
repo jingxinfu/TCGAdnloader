@@ -1,4 +1,0 @@
-sample	percent_lymphocyte_infiltration	percent_monocyte_infiltration	percent_necrosis	percent_neutrophil_infiltration	percent_normal_cells	percent_stromal_cells	percent_tumor_cells	percent_tumor_nuclei
-TCGA-FW-A3R5-11	0.0	0.0	0	0.0	100.0	0.0	0.0	0
-TCGA-FW-A5DY-11	2.0	1.0	0	1.0	10.0	90.0	0.0	0
-TCGA-GN-A4U8-11	0.0	0.0	0	0.0	100.0	0.0	0.0	0
