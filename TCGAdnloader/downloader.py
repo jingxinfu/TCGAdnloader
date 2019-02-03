@@ -222,7 +222,7 @@ class GdcApi(object):
             surs = surs[list(CLIN_MAP.values())] 
             format_surs = formatClin(surs)
             storeData(df=format_surs,parental_dir=self.parental_dir,
-            sub_folder='Sur',cancer=self.cancer)
+            sub_folder='Surv',cancer=self.cancer)
             stderr = ''
         else:
             stderr = 'Cannot Found\tsurvival_info\t'+self.cancer+'\n'
