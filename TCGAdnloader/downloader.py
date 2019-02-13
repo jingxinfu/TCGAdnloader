@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import subprocess, os,time
+import subprocess, os,time,gzip
 import pandas as pd
 import numpy as np
 from functools import reduce
@@ -38,10 +38,11 @@ class GdcApi(object):
         self.parental_dir = parental_dir
         self.cases_endpt = cases_endpt
 
-    def _projFilter(self, data_type):
+    def _projFilter(self, data_type,method=None):
         dtype_dict = {
             "cnv_segment_somatic": "Masked Copy Number Segment",
             "cnv_segment_all": "Copy Number Segment",
+            "masked_somatic_mutation":"Masked Somatic Mutation",
         }
         filters = {
             "op": "and",
@@ -66,6 +67,17 @@ class GdcApi(object):
                 },
             ]
         }
+        # specific for SNV on TCGA (Calling by four different tools)
+        if method != None:
+            filters['content'].append({
+               "op":"in",
+               "content":{
+                   "field": "files.analysis.workflow_type",
+                   "value":[
+                       "{} Variant Aggregation and Masking".format(method)
+                   ]
+               } 
+            }) 
 
         params = {
             "filters": json.dumps(filters),
@@ -103,7 +115,7 @@ class GdcApi(object):
 
         return params
 
-    def _fetchFileID(self, data_type, by_name=True):
+    def _fetchFileID(self, data_type, by_name=True,method=None):
         ''' Get files id by upstream filter parameters
         
         Parameters
@@ -131,21 +143,19 @@ class GdcApi(object):
 
         else:
             file_uuid_list = []
-            params = self._projFilter(data_type)
+            params = self._projFilter(data_type,method=method)
             response = requests.get(self.files_endpt, params=params)
-
             if "message" in json.loads(response.content.decode("utf-8")).keys():
                 return None, 'Not found'
 
             for file_entry in json.loads(response.content.decode("utf-8"))["data"]["hits"]:
                 file_uuid_list.append(file_entry["file_id"])
-
         if len(file_uuid_list) == 0:
             return None,'Not found'
         else:
             return file_uuid_list,None
        
-    def getTableFromFiles(self, data_type, by_name=True, **kwargs):
+    def getTableFromFiles(self, data_type, by_name=True,method=None,**kwargs):
        
         ''' 
         Merging tables downloaded by a list of file ids
@@ -153,12 +163,11 @@ class GdcApi(object):
         '''
         try:
             file_uuid_list, error = self._fetchFileID(
-                data_type=data_type, by_name=by_name)
+                data_type=data_type, by_name=by_name,method=method)
         except requests.exceptions.SSLError:
             time.sleep(10)
             file_uuid_list, error = self._fetchFileID(
-                data_type=data_type, by_name=by_name)
-
+                data_type=data_type, by_name=by_name,method=method)
         if error != None:
             return None, error
         ready_to_merge = []
@@ -173,8 +182,17 @@ class GdcApi(object):
                 response = requests.post(self.data_endpt, data=json.dumps(
                     params), headers={"Content-Type": "application/json"})
 
-            df = pd.read_table(io.StringIO(
-                response.content.decode("utf-8")), **kwargs)
+            if method != None:
+                file = open("_snv_tmp.gz", "wb")
+                file.write(response.content)
+                file.close()
+                df = pd.read_table('_snv_tmp.gz', **kwargs)
+                subprocess.call('rm _snv_tmp.gz' ,shell=True)
+
+            else:
+                df = pd.read_table(io.StringIO(
+                    response.content.decode("utf-8")), **kwargs)
+
             ready_to_merge.append(df)
         
         return pd.concat(ready_to_merge,axis=0),None
@@ -721,7 +739,7 @@ class GdcDnloader(GdcApi, Workflow):
         self.base_url = base_url
         self.type_available = {
                     'RNASeq': ['fpkm','count','fpkm_uq'],
-                    'SNV': ['muse',"mutect2","VarScan2","SomaticSnipe"],
+                    'SNV': ['MuSE', "MuTect2", "VarScan2", "SomaticSniper"],
                     'cnv': ['somatic','all']
                 }
 
@@ -836,19 +854,18 @@ class GdcDnloader(GdcApi, Workflow):
         return ''
 
     def snv(self):
-        store_parental = '/'.join([self.parental_dir, 'SNV'])
-        for name in self.type_available['SNV']:
-            store_dir = '/'.join([store_parental, name])
-
-            log = self._fget(data_type=name, store_dir=store_dir)
-
-            if log != 'Success':
-                return 'Cannot Found\t' + name+'\t'+self.cancer+'\n'
+        for m in self.type_available['SNV']:
+            df, errors = self.getTableFromFiles(
+                data_type='masked_somatic_mutation', by_name=False,method=m,comment='#')
+            if errors != None:
+                return 'Cannot Found\t'+m+'\t'+self.cancer+'\n'
             else:
-                df = pd.read_table('/'.join([store_dir, self.cancer]), index_col=0)
-                df.index = df.index.map(lambda x: x[:-1])
-                df.index.name = 'sample'
-                df.to_csv('/'.join([store_dir, self.cancer]), sep='\t')
+                df.rename(columns={"Hugo_Symbol":"gene"},inplace=True)
+                df.insert(0, 'sample', df["Tumor_Sample_Barcode"].map(
+                    lambda x: '-'.join(x.split('-')[:4])[:-1]))
+                store_parental = '/'.join([self.parental_dir, 'SNV'])
+                storeData(df=df, parental_dir=store_parental,
+                          sub_folder=m, cancer=self.cancer)
 
         return ''
 

@@ -12,7 +12,8 @@ if __name__ == "__main__":
                         required=False, help="Aligned Reference",default=['hg19','hg38'])
     parser.add_argument('-c', '--cancer', nargs='+',default=CANCER_LIST,
                         required=False,help="Cancer type included")
-    parser.add_argument('-m', '--meta', default=True,help="Whether alson download the meta information.")
+    parser.add_argument('--no-meta',dest='meta',action='store_false',help='Do not install meta information')
+    parser.set_defaults(meta=True)
     parser.add_argument('-t', '--datatype', nargs='+', default=['rnaseq','cnv','rppa','snv'],
                         required=False,help="Data type included")
                         
