@@ -104,7 +104,8 @@ def calTNzcore(df,pair_TN = True):
     else:
          norm_factor = tumor.mean(axis=1)
 
-    result = tumor.subtract(norm_factor, axis=0)
+    result = tumor.sub(norm_factor, axis='index')
+    result = result.div(result.std(axis=1), axis='index')
     
     return result
 
