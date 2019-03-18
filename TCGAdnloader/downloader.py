@@ -839,7 +839,7 @@ class GdcDnloader(GdcApi, Workflow):
                     except ValueError:
                         pass
 
-                    storeData(df=df, parental_dir=store_parental,
+                    storeData(df=raw_df, parental_dir=store_parental,
                               sub_folder=raw_name+'/origin', cancer=self.cancer)
 
             else:
