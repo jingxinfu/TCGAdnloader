@@ -14,6 +14,9 @@ if __name__ == "__main__":
                         required=False,help="Cancer type included")
     parser.add_argument('--no-meta',dest='meta',action='store_false',help='Do not install meta information')
     parser.set_defaults(meta=True)
+    parser.add_argument('--no-drug', dest='drug', action='store_false',
+                        help='Do not install drug information')
+    parser.set_defaults(drug=True)
     parser.add_argument('-t', '--datatype', nargs='+', default=['rnaseq','cnv','rppa','snv'],
                         required=False,help="Data type included")
                         
@@ -35,5 +38,10 @@ if __name__ == "__main__":
             dl = downloader.GdcApi(parental_dir=args.output,
                                         cancer=cancer)
             dl.metaDownload()
+
+        if args.drug == True:
+            dl = downloader.GdcApi(parental_dir=args.output,
+                                   cancer=cancer)
+            dl.drugDownload()
                 
    

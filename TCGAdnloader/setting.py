@@ -69,6 +69,13 @@ CLIN_MAP = {
 }
 
 
+DRUG_MAP = {
+    "bcr_patient_barcode": "patient",
+    "bcr_drug_barcode":"drug_barcode",
+    "pharmaceutical_therapy_drug_name":"drug_name",
+    "pharmaceutical_therapy_type":"drug_type",
+}
+
 CANCER_LIST = [
     'ACC','BRCA','CHOL','ESCA','KICH','KIRP','LGG','LUAD','MESO','PAAD','PRAD',
     'SARC','STAD','TGCT','THYM','UCS','BLCA','CESC','COAD','DLBC','GBM','HNSC',

@@ -7,7 +7,7 @@ from functools import reduce
 from .convertor import mergeToSample, calTNzcore, rmEntrez, tpmToFpkm, mapEm2Gene, formatClin, pick
 from .outformat import storeData
 import requests,json,re,io
-from .setting import CLIN_INFO, Biospecimen_INFO, Biospecimen_MAP,CLIN_MAP ,PAM50_PATH
+from .setting import CLIN_INFO, Biospecimen_INFO, Biospecimen_MAP, CLIN_MAP, PAM50_PATH, DRUG_MAP
 
 class GdcApi(object):
     ''' 
@@ -89,6 +89,7 @@ class GdcApi(object):
 
     def _nameFilter(self, data_type):
         dtype_dict = {
+            'drug': "nationwidechildrens.org_clinical_patient_{}.txt".format(self.cancer.lower()),
             'gistic': '{}.focal_score_by_genes.txt'.format(self.cancer.upper()),
             # 'survival': "nationwidechildrens.org_clinical_follow_up_v{0}_{1}.txt".format(CLIN_VERSION[self.cancer], self.cancer.lower()),
             'patient': "nationwidechildrens.org_clinical_patient_{}.txt".format(self.cancer.lower()),
@@ -318,6 +319,44 @@ class GdcApi(object):
                     sub_folder=sub_folder,cancer=self.cancer)
         
         return stderr
+
+    def drug(self):
+        '''
+        Downloading Drug information
+        '''
+        stderr = ''
+        df, errors = self.getTableFromFiles(data_type='drug')
+        if errors == None:
+            df = df.drop([0,1],axis=0)
+            df.rename(columns=DRUG_MAP,inplace=True)
+            df.replace('[Not Available]', np.nan, inplace=True)
+            storeData(df=df, parental_dir=self.parental_dir,
+                      sub_folder='Drug', cancer=self.cancer)
+        else:
+            stderr += 'Cannot Found\tDrug information for \t'+self.cancer+'\n'
+        
+        return stderr
+ 
+    def drugDownload(self):
+        if not os.path.isdir(self.parental_dir):
+            os.makedirs(self.parental_dir)
+        # asyn download
+        download_log_file = '/'.join([self.parental_dir, 'drug_finish.log'])
+        if os.path.isfile(download_log_file):
+            with open(download_log_file, 'r') as f:
+                content = f.readlines()
+            content = [x.strip() for x in content]
+        else:
+            content = []
+
+         # begain download if not having been downloaded before
+        if not self.cancer in content:
+            with open('/'.join([self.parental_dir, 'meta_stderr.log']), 'a+') as stderrs:
+                logs = self.drug()
+                stderrs.write(logs)
+
+            with open(download_log_file, 'a+') as f:
+                f.write(self.cancer+'\n')
 
     def metaDownload(self):
         if not os.path.isdir(self.parental_dir):
