@@ -74,6 +74,14 @@ DRUG_MAP = {
     "bcr_drug_barcode":"drug_barcode",
     "pharmaceutical_therapy_drug_name":"drug_name",
     "pharmaceutical_therapy_type":"drug_type",
+    "pharmaceutical_tx_started_days_to":"started_days",
+    "pharmaceutical_tx_ongoing_indicator": "ongoing_indicator",
+    "pharmaceutical_tx_ended_days_to":"ended_days",
+    "pharmaceutical_tx_dose_units":"dose_units",
+    "pharmaceutical_tx_total_dose_units": "total_dose_units",
+    "prescribed_dose": "prescribed_dose",
+    "regimen_number": "regimen_number",
+    "total_dose":"total_dose"
 }
 
 CANCER_LIST = [

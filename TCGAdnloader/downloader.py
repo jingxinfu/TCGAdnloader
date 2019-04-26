@@ -89,7 +89,7 @@ class GdcApi(object):
 
     def _nameFilter(self, data_type):
         dtype_dict = {
-            'drug': "nationwidechildrens.org_clinical_patient_{}.txt".format(self.cancer.lower()),
+            'drug': "nationwidechildrens.org_clinical_drug_{}.txt".format(self.cancer.lower()),
             'gistic': '{}.focal_score_by_genes.txt'.format(self.cancer.upper()),
             # 'survival': "nationwidechildrens.org_clinical_follow_up_v{0}_{1}.txt".format(CLIN_VERSION[self.cancer], self.cancer.lower()),
             'patient': "nationwidechildrens.org_clinical_patient_{}.txt".format(self.cancer.lower()),
@@ -172,6 +172,9 @@ class GdcApi(object):
         if error != None:
             return None, error
         ready_to_merge = []
+
+        if len(file_uuid_list) == 0 :
+            return None, 'Cannot find any file.'
 
         for ids in file_uuid_list:
             params = {"ids": [ids]}
@@ -328,8 +331,10 @@ class GdcApi(object):
         df, errors = self.getTableFromFiles(data_type='drug')
         if errors == None:
             df = df.drop([0,1],axis=0)
+            df = df.loc[:,df.columns.isin(list(DRUG_MAP.keys()))]
             df.rename(columns=DRUG_MAP,inplace=True)
             df.replace('[Not Available]', np.nan, inplace=True)
+            df.set_index('patient',inplace=True)
             storeData(df=df, parental_dir=self.parental_dir,
                       sub_folder='Drug', cancer=self.cancer)
         else:
@@ -351,7 +356,7 @@ class GdcApi(object):
 
          # begain download if not having been downloaded before
         if not self.cancer in content:
-            with open('/'.join([self.parental_dir, 'meta_stderr.log']), 'a+') as stderrs:
+            with open('/'.join([self.parental_dir, 'drug_stderr.log']), 'a+') as stderrs:
                 logs = self.drug()
                 stderrs.write(logs)
 
