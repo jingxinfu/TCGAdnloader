@@ -21,7 +21,7 @@ pip install .
 ## Usage:
 ```
 usage: tcgaDnloader [-h] -o OUTPUT [-r REF [REF ...]] [-c CANCER [CANCER ...]]
-               [-t DATATYPE [DATATYPE ...]]
+                    [--no-meta] [--no-drug] [-t DATATYPE [DATATYPE ...]]
 
 Tools to download public genomic data
 
@@ -32,7 +32,14 @@ optional arguments:
   -r REF [REF ...], --ref REF [REF ...]
                         Aligned Reference (default: ['hg19', 'hg38'])
   -c CANCER [CANCER ...], --cancer CANCER [CANCER ...]
-                        Cancer type included (default: ['BRCA'])
+                        Cancer type included (default: ['ACC', 'BRCA', 'CHOL',
+                        'ESCA', 'KICH', 'KIRP', 'LGG', 'LUAD', 'MESO', 'PAAD',
+                        'PRAD', 'SARC', 'STAD', 'TGCT', 'THYM', 'UCS', 'BLCA',
+                        'CESC', 'COAD', 'DLBC', 'GBM', 'HNSC', 'KIRC', 'LAML',
+                        'LIHC', 'LUSC', 'OV', 'PCPG', 'READ', 'SKCM', 'THCA',
+                        'UCEC', 'UVM'])
+  --no-meta             Do not install meta information (default: True)
+  --no-drug             Do not install drug information (default: True)
   -t DATATYPE [DATATYPE ...], --datatype DATATYPE [DATATYPE ...]
                         Data type included (default: ['rnaseq', 'cnv', 'rppa',
                         'snv'])
