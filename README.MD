@@ -14,7 +14,7 @@ This package is for downloading TCGA project data on a managable data structure 
 
 ```
 git clone git@github.com:jingxinfu/TCGAdnloader.git
-cd dataCollection
+cd TCGAdnloader
 pip install .
 ```
 
