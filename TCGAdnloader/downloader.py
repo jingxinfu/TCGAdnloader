@@ -278,10 +278,10 @@ class GdcApi(object):
                             meta = meta.drop_duplicates()
                             meta['patient'] = meta['sample'].map(lambda x: '-'.join(x.split('-')[:3]))
                        
-                    elif 'hpv_status' in v:
-                        meta = meta.drop(0,axis=0)
-                    else:
-                        meta = meta.drop([0,1],axis=0)
+                    # elif 'hpv_status' in v:
+                    #     meta = meta.drop(0,axis=0)
+                    # else:
+                    #     meta = meta.drop([0,1],axis=0)
 
                     
                     ## additional info
@@ -290,10 +290,10 @@ class GdcApi(object):
                         meta = meta.apply(pd.to_numeric)
                         meta = mergeToSample(meta,transpose=True)
 
-                    if k == "patient" and self.cancer == 'BRCA':
-                        pam50 = pd.read_table(PAM50_PATH, index_col=0).rename(columns={
-                            "PAM50 mRNA":'PAM50'})['PAM50'].to_frame()
-                        meta = meta.merge(pam50, left_on='patient',right_index=True,how='left')
+                    # if k == "patient" and self.cancer == 'BRCA':
+                    #     pam50 = pd.read_table(PAM50_PATH, index_col=0).rename(columns={
+                    #         "PAM50 mRNA":'PAM50'})['PAM50'].to_frame()
+                    #     meta = meta.merge(pam50, left_on='patient',right_index=True,how='left')
 
                     read_to_merge.append(meta)
                 else:
@@ -308,14 +308,14 @@ class GdcApi(object):
                 continue
 
             ## Store tumor and normal info separatelly
-            if sub_folder == "histology":
-                for s in ['tumor','normal']:
-                    sub_result = pick(result, source=s, transpose=True)
-                    storeData(sub_result,
-                            parental_dir=self.parental_dir,
-                            sub_folder='/'.join([sub_folder,s]), cancer=self.cancer)
+            # if sub_folder == "histology":
+                # for s in ['tumor','normal']:
+                #     sub_result = pick(result, source=s, transpose=True)
+                #     storeData(sub_result,
+                #             parental_dir=self.parental_dir,
+                #             sub_folder='/'.join([sub_folder,s]), cancer=self.cancer)
                 
-                sub_folder += '/origin'
+                # sub_folder += '/origin'
 
             storeData(result,
                     parental_dir=self.parental_dir,
@@ -377,7 +377,7 @@ class GdcApi(object):
         # begain download if not having been downloaded before
         if not self.cancer in content:
             with open('/'.join([self.parental_dir, 'meta_stderr.log']), 'a+') as stderrs:
-                for n in ['biospecimen', 'clin']:
+                for n in ['biospecimen']:#, 'clin']:
                     logs = self.__getattribute__(n)()
                 stderrs.write(logs)
 
@@ -904,9 +904,9 @@ class GdcDnloader(GdcApi, Workflow):
             if errors != None:
                 return 'Cannot Found\t'+m+'\t'+self.cancer+'\n'
             else:
-                df.rename(columns={"Hugo_Symbol":"gene"},inplace=True)
-                df.insert(0, 'sample', df["Tumor_Sample_Barcode"].map(
-                    lambda x: '-'.join(x.split('-')[:4])[:-1]))
+                # df.rename(columns={"Hugo_Symbol":"gene"},inplace=True)
+                # df.insert(0, 'sample', df["Tumor_Sample_Barcode"].map(
+                #     lambda x: '-'.join(x.split('-')[:4])[:-1]))
                 store_parental = '/'.join([self.parental_dir, 'SNV'])
                 storeData(df=df, parental_dir=store_parental,
                           sub_folder=m, cancer=self.cancer)
