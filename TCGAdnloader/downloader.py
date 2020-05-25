@@ -187,11 +187,12 @@ class GdcApi(object):
                     params), headers={"Content-Type": "application/json"})
 
             if method != None:
-                file = open("_snv_tmp.gz", "wb")
+                temp_file = self.cancer+'_'+method+"_snv_tmp.gz"
+                file = open(temp_file, "wb")
                 file.write(response.content)
                 file.close()
-                df = pd.read_table('_snv_tmp.gz', **kwargs)
-                subprocess.call('rm _snv_tmp.gz' ,shell=True)
+                df = pd.read_table(temp_file, **kwargs)
+                subprocess.call('rm %s' % temp_file ,shell=True)
 
             else:
                 df = pd.read_table(io.StringIO(
