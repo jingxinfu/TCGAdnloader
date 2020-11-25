@@ -167,7 +167,19 @@ def tpmToFpkm(df,reverse=False):
         fpkm = (df * row_sum) / 10e3
         return fpkm
 
-
+def formatDrug(df):
+    df.replace('[Not Available]', np.nan, inplace=True)
+    df.replace('[Not Available]', np.nan, inplace=True)
+    if 'response' in df.columns:
+        df['response'] = df['response'].map({
+            "Clinical Progressive Disease":"PD",
+            "Complete Response":"CR",
+            "[Not Applicable]":np.nan,
+            "Partial Response":"PR",
+            "Stable Disease":"SD",
+            "[Unknown]":np.nan
+        })
+    return df
 def formatClin(df):
         
     df['OS_Event'] = df['OS_Event'].map({'dead': 1, 'alive': 0})

@@ -4,7 +4,7 @@ import subprocess, os,time,gzip
 import pandas as pd
 import numpy as np
 from functools import reduce
-from .convertor import mergeToSample, calTNzcore, rmEntrez, tpmToFpkm, mapEm2Gene, formatClin, pick
+from .convertor import mergeToSample, calTNzcore, rmEntrez, tpmToFpkm, mapEm2Gene, formatClin, pick,formatDrug
 from .outformat import storeData
 import requests,json,re,io
 from .setting import CLIN_INFO, Biospecimen_INFO, Biospecimen_MAP, CLIN_MAP, PAM50_PATH, DRUG_MAP
@@ -334,7 +334,7 @@ class GdcApi(object):
             df = df.drop([0,1],axis=0)
             df = df.loc[:,df.columns.isin(list(DRUG_MAP.keys()))]
             df.rename(columns=DRUG_MAP,inplace=True)
-            df.replace('[Not Available]', np.nan, inplace=True)
+            df = formatDrug(df)
             df.set_index('patient',inplace=True)
             storeData(df=df, parental_dir=self.parental_dir,
                       sub_folder='Drug', cancer=self.cancer)
