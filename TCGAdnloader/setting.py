@@ -81,7 +81,8 @@ DRUG_MAP = {
     "pharmaceutical_tx_total_dose_units": "total_dose_units",
     "prescribed_dose": "prescribed_dose",
     "regimen_number": "regimen_number",
-    "total_dose":"total_dose"
+    "total_dose":"total_dose",
+    "treatment_best_response":"response"
 }
 
 CANCER_LIST = [
