@@ -179,6 +179,8 @@ def formatDrug(df):
             "Stable Disease":"SD",
             "[Unknown]":np.nan
         })
+    else:
+        df['response'] = np.nan
     return df
 def formatClin(df):
         
